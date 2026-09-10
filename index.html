@@ -39,25 +39,33 @@
   }
   header p.tag{margin:5px 0 0;color:var(--text-dim);font-size:14px;}
 
-  .meter{
+  .score-row{
+    display:flex; align-items:center; justify-content:space-between;
     margin-top:16px;
-    height:10px;
-    border-radius:5px;
+  }
+  .score-num{ font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .score-num.blue{ color:var(--blue); }
+  .score-num.red{ color:var(--red); }
+  .phase-pill{
+    font-size:12px; font-weight:600; padding:4px 12px; border-radius:99px;
+    border:1px solid var(--panel-border); color:var(--text-dim); white-space:nowrap;
+  }
+
+  .progress{
+    margin-top:12px;
+    height:8px;
+    border-radius:4px;
     background:#1a1f2b;
     position:relative;
     overflow:hidden;
     border:1px solid var(--panel-border);
   }
-  .meter::after{
-    content:'';
-    position:absolute; left:50%; top:0; bottom:0; width:1px;
-    background:var(--gold); opacity:0.55;
+  .progress::after{
+    content:''; position:absolute; left:50%; top:0; bottom:0; width:1px;
+    background:var(--gold); opacity:0.6;
   }
-  .meter .fill{ position:absolute; top:0; height:100%; width:0%; transition:width .3s ease; }
-  .meter .fill-blue{ left:0; background:linear-gradient(90deg,#2c7fd6,var(--blue)); }
-  .meter .fill-red{ right:0; background:linear-gradient(90deg,var(--red),#d63a54); }
-  .meter-labels{display:flex;justify-content:space-between;font-size:13px;color:var(--text-dim);margin-top:7px;font-variant-numeric:tabular-nums;}
-  .meter-labels b{color:var(--text);font-weight:600;font-size:14px;}
+  .progress-fill{ position:absolute; left:0; top:0; height:100%; width:0%; background:linear-gradient(90deg,#5b6ee8,#8f7bf0); transition:width .3s ease; }
+  .progress-labels{ font-size:12px; color:var(--text-dim); margin-top:7px; text-align:center; font-variant-numeric:tabular-nums; }
 
   .board-panel{
     background:var(--panel);
@@ -98,9 +106,6 @@
   }
   .win-banner.show{display:block;}
 
-  @keyframes pulse{ 0%,100%{opacity:0.3;} 50%{opacity:0.85;} }
-  .centerPulse{ animation:pulse 1.8s ease-in-out infinite; }
-
   .mode-tabs{ display:flex; gap:6px; }
   button.tab-btn{
     background:none; border:1px solid var(--panel-border); color:var(--text-dim);
@@ -132,23 +137,22 @@
   }
   .room-status-text .pill.blue{ color:var(--blue); border-color:var(--blue); }
   .room-status-text .pill.red{ color:var(--red); border-color:var(--red); }
-  .room-status-text .pill.spectator{ color:var(--text-dim); }
 </style>
 </head>
 <body>
 <div id="app">
   <header>
     <h1>Meridian</h1>
-    <p class="tag">Grow your network out from your corners. Hold the center to score.</p>
-    <div class="meter">
-      <div class="fill fill-blue" id="fillBlue"></div>
-      <div class="fill fill-red" id="fillRed"></div>
+    <p class="tag">Claim territory from your home edge — the deeper into enemy ground, the more it's worth.</p>
+    <div class="score-row">
+      <span class="score-num blue" id="blueScore">0</span>
+      <span class="phase-pill" id="phaseLabel">Phase 1</span>
+      <span class="score-num red" id="redScore">0</span>
     </div>
-    <div class="meter-labels">
-      <span><b id="blueScore">0</b> Blue</span>
-      <span>First to 30</span>
-      <span>Red <b id="redScore">0</b></span>
+    <div class="progress">
+      <div class="progress-fill" id="progressFill"></div>
     </div>
+    <div class="progress-labels" id="decisionLabel">Decision 1 of 200</div>
   </header>
 
   <div class="mode-tabs" id="modeTabs">
@@ -184,7 +188,6 @@
         </filter>
       </defs>
       <g id="gridLayer"></g>
-      <g id="centerLayer"></g>
       <g id="rangeLayer"></g>
       <g id="edgeLayer"></g>
       <g id="nodeLayer"></g>
@@ -207,12 +210,12 @@
   <details class="legend">
     <summary>How to play</summary>
     <ul>
-      <li>Tap one of your own nodes, then tap a nearby point (within 3 king-moves) to grow a new edge there. Tap your selected node again to cancel it — any other tap attempts a move from it.</li>
-      <li>Landing on an empty point claims it. Landing on your own point closes a loop. You can't target a point your opponent already controls, and you can't lay a new edge on top of an existing one (yours or theirs).</li>
-      <li>Your edge's straight path can't pass through any existing node (yours or theirs), and a brand-new node can't land on top of an existing edge. Edges can still cross each other, though — that's how cutting works.</li>
-      <li>If your new edge crosses or touches an opponent's edge, that edge is cut. You can cut up to as many opponent edges in one move as your source node's current degree (its number of existing edges) — a fresh node with no edges yet can't cut anything.</li>
-      <li>Cutting a key edge deletes everything downstream that's no longer connected to that player's home corners — that's the only way to remove an opponent's node.</li>
-      <li>Whoever holds the center point when a turn ends scores a point. First to 30 wins.</li>
+      <li>Blue starts owning all 19 points along the left edge; Red starts owning all 19 points along the right edge. Tap one of your own nodes, then tap a nearby point (within 3 king-moves) to grow a new edge there. Tap your selected node again to cancel it — any other tap attempts a move from it.</li>
+      <li>Landing on an empty point claims it. Landing on your own point closes a loop. Landing on an opponent's point (any of theirs, including their home-edge nodes) attacks it: every edge attached to that node gets cut, the node itself becomes yours, and it's illegal to attempt if that node has too many edges for the current phase's cap (below).</li>
+      <li>Your edge's path can't pass through one of your own existing nodes, and a brand-new node of yours can't land on one of your own existing edges. You also can't lay a new edge on top of an existing one, yours or theirs. None of this applies to your opponent's nodes or edges — your edge can freely pass through or near their stuff.</li>
+      <li>The game runs for exactly 200 "decisions" (one decision = one edge+node placement), split into two 100-decision phases. In Phase 1 you can cut at most 1 opponent edge per move — from crossing, from an attack, or both combined. In Phase 2, up to 2.</li>
+      <li>Cutting a key edge deletes everything downstream that's no longer connected to that player's home edge.</li>
+      <li>Each node is worth points based on how far it sits from your <em>own</em> home edge — 0 right at home, rising by 1 for each column deeper into enemy territory. Whoever has more total points when the 200 decisions run out wins (a tie is possible).</li>
     </ul>
   </details>
 </div>
@@ -220,12 +223,11 @@
 <script>
 (function(){
   const SIZE=19, CELL=36, PAD=40;
-  const CENTER={x:9,y:9};
+  const TOTAL_DECISIONS=200, PHASE_LEN=100;
   const COLORS={ blue:'#4da3ff', red:'#ff5470', gold:'#f2c14e', dim:'#7b8494', grid:'#2f3648' };
 
   const svg=document.getElementById('board');
   const gridLayer=document.getElementById('gridLayer');
-  const centerLayer=document.getElementById('centerLayer');
   const rangeLayer=document.getElementById('rangeLayer');
   const edgeLayer=document.getElementById('edgeLayer');
   const nodeLayer=document.getElementById('nodeLayer');
@@ -234,8 +236,9 @@
   const messageEl=document.getElementById('message');
   const blueScoreEl=document.getElementById('blueScore');
   const redScoreEl=document.getElementById('redScore');
-  const fillBlueEl=document.getElementById('fillBlue');
-  const fillRedEl=document.getElementById('fillRed');
+  const phaseLabelEl=document.getElementById('phaseLabel');
+  const progressFillEl=document.getElementById('progressFill');
+  const decisionLabelEl=document.getElementById('decisionLabel');
   const winBannerEl=document.getElementById('winBanner');
   const restartBtn=document.getElementById('restartBtn');
   const undoBtn=document.getElementById('undoBtn');
@@ -265,7 +268,7 @@
   function capitalize(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
   function clearLayer(layer){ while(layer.firstChild) layer.removeChild(layer.firstChild); }
 
-  let nodes, edges, edgeIdCounter, turnIndex, currentPlayer, movesLeftInTurn, scores, selectedSource, hoverPoint, gameOver, winner;
+  let nodes, edges, edgeIdCounter, turnIndex, currentPlayer, movesLeftInTurn, decisionCount, selectedSource, hoverPoint, gameOver, winner;
   let historyStack, redoStack;
   let mode='local'; // 'local' | 'online'
   let roomId=null, myColor=null, claims={blue:false,red:false};
@@ -273,16 +276,16 @@
 
   function initState(){
     nodes=new Map();
-    nodes.set(key(0,0),  {x:0,y:0,  owner:'red',  isRoot:true});
-    nodes.set(key(18,18),{x:18,y:18,owner:'red',  isRoot:true});
-    nodes.set(key(18,0), {x:18,y:0, owner:'blue', isRoot:true});
-    nodes.set(key(0,18), {x:0,y:18, owner:'blue', isRoot:true});
+    for(let y=0;y<SIZE;y++){
+      nodes.set(key(0,y),    {x:0,   y, owner:'blue', isRoot:true});
+      nodes.set(key(SIZE-1,y),{x:SIZE-1,y, owner:'red',  isRoot:true});
+    }
     edges=[];
     edgeIdCounter=0;
     turnIndex=0;
     currentPlayer='blue';
     movesLeftInTurn=1;
-    scores={blue:0,red:0};
+    decisionCount=0;
     selectedSource=null;
     hoverPoint=null;
     gameOver=false;
@@ -291,13 +294,23 @@
     redoStack=[];
   }
 
+  function currentPhase(){ return decisionCount<PHASE_LEN ? 1 : 2; }
+  function computeScore(player){
+    let s=0;
+    for(const [,n] of nodes){
+      if(n.owner!==player) continue;
+      s += player==='blue' ? n.x : (SIZE-1-n.x);
+    }
+    return s;
+  }
+
   // ---------- undo / redo ----------
   function snapshotState(){
     return {
       nodes:[...nodes.entries()].map(([k,v])=>[k,{...v}]),
       edges:edges.map(e=>({...e})),
-      edgeIdCounter, turnIndex, currentPlayer, movesLeftInTurn,
-      scores:{...scores}, gameOver, winner
+      edgeIdCounter, turnIndex, currentPlayer, movesLeftInTurn, decisionCount,
+      gameOver, winner
     };
   }
   function restoreState(s){
@@ -307,7 +320,7 @@
     turnIndex=s.turnIndex;
     currentPlayer=s.currentPlayer;
     movesLeftInTurn=s.movesLeftInTurn;
-    scores={...s.scores};
+    decisionCount=s.decisionCount;
     gameOver=s.gameOver;
     winner=s.winner;
   }
@@ -368,7 +381,7 @@
       return;
     }
     onlinePanel.style.display='';
-    undoBtn.style.display='none'; redoBtn.style.display='none'; // undo/redo don't make sense once moves are shared live
+    undoBtn.style.display='none'; redoBtn.style.display='none';
     if(!roomId){
       lobbyCreate.style.display=''; lobbyPick.style.display='none'; roomStatus.style.display='none';
       restartBtn.disabled=true;
@@ -395,7 +408,7 @@
       if(!latest.exists){ messageEl.className='message'; messageEl.textContent='This room no longer exists.'; return; }
       applyRoomPayload(latest.state);
       knownVersion=latest.version;
-      if(claims[color]){ updateOnlineUI(); render(); return; } // someone beat us to it
+      if(claims[color]){ updateOnlineUI(); render(); return; }
       const newClaims={...claims, [color]:true};
       const payload={...buildRoomPayload(), claims:newClaims};
       const res=await apiCommit(roomId, knownVersion, payload);
@@ -405,11 +418,11 @@
         claims=newClaims;
         localStorage.setItem(storageKey(roomId), color);
         messageEl.className='message ok';
-        messageEl.textContent = color==='blue' ? 'Blue moves first — tap a blue corner to begin.' : "Waiting for Blue's move.";
+        messageEl.textContent = color==='blue' ? 'Blue moves first — tap one of your left-edge nodes to begin.' : "Waiting for Blue's move.";
       } else if(res.state){
         applyRoomPayload(res.state);
         knownVersion=res.version;
-        if(!claims[color]){ return claimColor(color); } // retry once against fresh state
+        if(!claims[color]){ return claimColor(color); }
         messageEl.className='message';
         messageEl.textContent='Someone just claimed that color — pick the other one.';
       }
@@ -453,10 +466,6 @@
       const remembered=localStorage.getItem(storageKey(id));
       if(remembered && claims[remembered]){
         myColor=remembered;
-      } else if(!claims.blue){
-        // leave picker open (or auto-claim below if only one side remains)
-      } else if(!claims.red){
-        // leave picker open
       }
       if(!myColor && claims.blue && !claims.red){ await claimColor('red'); }
       else if(!myColor && claims.red && !claims.blue){ await claimColor('blue'); }
@@ -552,8 +561,6 @@
     return false;
   }
   function segmentsOverlap(p1,p2,p3,p4){
-    // true only if the two segments are collinear AND share a run of positive length
-    // (a shared single point, like two edges meeting end-to-end, does NOT count)
     if(orientation(p1,p2,p3)!==0 || orientation(p1,p2,p4)!==0) return false;
     const dx=p2.x-p1.x, dy=p2.y-p1.y;
     const useX = Math.abs(dx) >= Math.abs(dy);
@@ -563,17 +570,12 @@
     const lo=Math.max(aLo,bLo), hi=Math.min(aHi,bHi);
     return hi-lo>1e-9;
   }
-  function degreeAt(point){
-    let n=0;
-    for(const e of edges){
-      if((e.x1===point.x&&e.y1===point.y)||(e.x2===point.x&&e.y2===point.y)) n++;
-    }
-    return n;
-  }
   function pointOnSegment(pt, a, b){
-    // true if pt lies exactly on segment a-b (inclusive of endpoints)
     if(orientation(a,b,pt)!==0) return false;
     return onSegment(a, pt, b);
+  }
+  function edgesAt(point){
+    return edges.filter(e=>(e.x1===point.x&&e.y1===point.y)||(e.x2===point.x&&e.y2===point.y));
   }
 
   // ---------- rules ----------
@@ -591,18 +593,20 @@
     let mode;
     if(!tNode) mode='claim';
     else if(tNode.owner===player) mode='loop';
-    else return {legal:false, reason:"You can't target a point your opponent controls."};
+    else mode='attack';
 
     for(const [k,n] of nodes){
+      if(n.owner!==player) continue;
       if(k===key(source.x,source.y) || k===tKey) continue;
       if(pointOnSegment(n, source, target)){
-        return {legal:false, reason:"Your edge would pass through an existing node."};
+        return {legal:false, reason:"Your edge would pass through one of your own existing nodes."};
       }
     }
-    if(mode==='claim'){
+    if(mode==='claim' || mode==='attack'){
       for(const e of edges){
+        if(e.owner!==player) continue;
         if(pointOnSegment(target, {x:e.x1,y:e.y1}, {x:e.x2,y:e.y2})){
-          return {legal:false, reason:"Your new node would land on an existing edge."};
+          return {legal:false, reason:"Your new node would land on one of your own existing edges."};
         }
       }
     }
@@ -611,14 +615,19 @@
       return {legal:false, reason:"You can't lay an edge on top of an existing one."};
     }
 
-    const crossHits=edges.filter(e=>e.owner===opponent &&
+    let nodeEdges=[];
+    if(mode==='attack') nodeEdges=edgesAt(target);
+    const nodeEdgeIds=new Set(nodeEdges.map(e=>e.id));
+    const crossHits=edges.filter(e=>e.owner===opponent && !nodeEdgeIds.has(e.id) &&
       segmentsIntersect(source, target, {x:e.x1,y:e.y1}, {x:e.x2,y:e.y2}));
 
-    const cap=degreeAt(source);
-    if(crossHits.length>cap){
-      return {legal:false, reason:`That would cut ${crossHits.length} opponent edges, but your source node's degree is only ${cap}.`};
+    const totalCuts=nodeEdges.length+crossHits.length;
+    const phase=currentPhase();
+    const cap=phase===1?1:2;
+    if(totalCuts>cap){
+      return {legal:false, reason:`That would cut ${totalCuts} opponent edge${totalCuts>1?'s':''} — Phase ${phase} allows at most ${cap}.`};
     }
-    return {legal:true, mode, crossHits};
+    return {legal:true, mode, crossHits, nodeEdges, wasRoot: mode==='attack' ? !!tNode.isRoot : false};
   }
 
   function cascadeCleanup(player){
@@ -651,8 +660,10 @@
   function describeMove(result, player){
     let base;
     if(result.mode==='loop') base=`${capitalize(player)} closes a loop`;
+    else if(result.mode==='attack') base = result.wasRoot ? `${capitalize(player)} destroys a home node` : `${capitalize(player)} attacks a node`;
     else base=`${capitalize(player)} extends the network`;
-    if(result.crossHits.length>0) base+= ` and cuts ${result.crossHits.length} edge${result.crossHits.length>1?'s':''}`;
+    const totalCuts=result.nodeEdges.length+result.crossHits.length;
+    if(totalCuts>0) base+= ` and cuts ${totalCuts} edge${totalCuts>1?'s':''}`;
     return base+'.';
   }
 
@@ -662,34 +673,36 @@
 
     const opponent=player==='blue' ? 'red' : 'blue';
     const tKey=key(target.x,target.y);
-    const toDelete=new Set(result.crossHits.map(e=>e.id));
+    const toDelete=new Set([...result.nodeEdges, ...result.crossHits].map(e=>e.id));
     edges=edges.filter(e=>!toDelete.has(e.id));
 
     if(result.mode==='claim'){
       nodes.set(tKey, {x:target.x,y:target.y,owner:player,isRoot:false});
+    } else if(result.mode==='attack'){
+      const n=nodes.get(tKey);
+      n.owner=player;
+      n.isRoot=false;
     }
     edges.push({id:edgeIdCounter++, owner:player, x1:source.x,y1:source.y,x2:target.x,y2:target.y});
 
     cascadeCleanup(opponent);
 
+    decisionCount++;
     movesLeftInTurn--;
     let msg=describeMove(result, player);
 
     if(movesLeftInTurn<=0){
-      const centerNode=nodes.get(key(CENTER.x,CENTER.y));
-      if(centerNode){
-        scores[centerNode.owner]++;
-        msg += ` ${capitalize(centerNode.owner)} holds the center — +1.`;
-      }
       turnIndex++;
-      if(scores.blue>=30||scores.red>=30){
-        gameOver=true;
-        winner = scores.blue>=30 ? 'blue' : 'red';
-      } else {
-        currentPlayer=opponent;
-        movesLeftInTurn=2;
-      }
+      currentPlayer=opponent;
+      movesLeftInTurn=2;
     }
+
+    if(decisionCount>=TOTAL_DECISIONS && !gameOver){
+      gameOver=true;
+      const bs=computeScore('blue'), rs=computeScore('red');
+      winner = bs===rs ? 'tie' : (bs>rs ? 'blue' : 'red');
+    }
+
     selectedSource=null; hoverPoint=null;
     messageEl.className='message ok';
     messageEl.textContent=msg;
@@ -699,20 +712,32 @@
 
   // ---------- rendering ----------
   function renderScoreAndTurn(){
-    blueScoreEl.textContent=scores.blue;
-    redScoreEl.textContent=scores.red;
-    fillBlueEl.style.width=(scores.blue/30*50)+'%';
-    fillRedEl.style.width=(scores.red/30*50)+'%';
+    const bs=computeScore('blue'), rs=computeScore('red');
+    blueScoreEl.textContent=bs;
+    redScoreEl.textContent=rs;
+    const phase=currentPhase();
+    progressFillEl.style.width=(Math.min(decisionCount,TOTAL_DECISIONS)/TOTAL_DECISIONS*100)+'%';
     undoBtn.disabled = historyStack.length===0;
     redoBtn.disabled = redoStack.length===0;
 
     if(gameOver){
+      phaseLabelEl.textContent='Final';
+      decisionLabelEl.textContent=`${decisionCount} of ${TOTAL_DECISIONS} decisions played`;
       turnIndicatorEl.innerHTML='Game over';
-      winBannerEl.textContent=`${capitalize(winner)} wins — first to 30 center points!`;
-      winBannerEl.style.color = winner==='blue' ? COLORS.blue : COLORS.red;
-      winBannerEl.style.borderColor = winner==='blue' ? COLORS.blue : COLORS.red;
+      if(winner==='tie'){
+        winBannerEl.textContent=`Tie game — ${bs} to ${rs}.`;
+        winBannerEl.style.color=COLORS.dim;
+        winBannerEl.style.borderColor=COLORS.dim;
+      } else {
+        const wScore = winner==='blue'?bs:rs, lScore = winner==='blue'?rs:bs;
+        winBannerEl.textContent=`${capitalize(winner)} wins, ${wScore} to ${lScore}!`;
+        winBannerEl.style.color = winner==='blue' ? COLORS.blue : COLORS.red;
+        winBannerEl.style.borderColor = winner==='blue' ? COLORS.blue : COLORS.red;
+      }
       winBannerEl.classList.add('show');
     } else {
+      phaseLabelEl.textContent=`Phase ${phase}`;
+      decisionLabelEl.textContent=`Decision ${decisionCount+1} of ${TOTAL_DECISIONS} — cut cap ${phase===1?1:2}`;
       winBannerEl.classList.remove('show');
       const color = currentPlayer==='blue' ? COLORS.blue : COLORS.red;
       turnIndicatorEl.innerHTML=`<b style="color:${color}">${capitalize(currentPlayer)}</b>'s move — ${movesLeftInTurn} to place`;
@@ -723,18 +748,9 @@
     clearLayer(gridLayer);
     for(let x=0;x<SIZE;x++){
       for(let y=0;y<SIZE;y++){
-        if(x===CENTER.x&&y===CENTER.y) continue;
         gridLayer.appendChild(el('circle',{cx:px(x), cy:py(y), r:1.6, fill:COLORS.grid}));
       }
     }
-  }
-
-  function drawCenterMarker(){
-    clearLayer(centerLayer);
-    const cx=px(CENTER.x), cy=py(CENTER.y);
-    const owner=nodes.get(key(CENTER.x,CENTER.y));
-    const color = owner ? (owner.owner==='blue'?COLORS.blue:COLORS.red) : COLORS.gold;
-    centerLayer.appendChild(el('circle',{cx,cy,r:12, fill:'none', stroke:color, 'stroke-width':2, 'stroke-dasharray':'3 4', class:'centerPulse'}));
   }
 
   function drawRangeHint(){
@@ -784,7 +800,6 @@
 
   function render(){
     renderScoreAndTurn();
-    drawCenterMarker();
     drawRangeHint();
     drawEdges();
     drawNodes();
@@ -835,7 +850,6 @@
       return;
     }
 
-    // any other tap attempts a move from the selected source, including onto another owned node
     const result=checkMove(selectedSource, grid, currentPlayer);
     if(!result.legal){
       messageEl.className='message';
@@ -869,7 +883,7 @@
     history.replaceState(null,'',location.pathname);
     initState();
     messageEl.className='message ok';
-    messageEl.textContent='Blue moves first — tap a blue corner to begin.';
+    messageEl.textContent='Blue moves first — tap one of your left-edge nodes to begin.';
     updateOnlineUI(); render();
   });
   tabOnline.addEventListener('click', ()=>{
@@ -906,7 +920,7 @@
     joinRoom(urlRoom.toUpperCase());
   } else {
     messageEl.className='message ok';
-    messageEl.textContent='Blue moves first — tap a blue corner to begin.';
+    messageEl.textContent='Blue moves first — tap one of your left-edge nodes to begin.';
     updateOnlineUI();
     render();
   }
