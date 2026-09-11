@@ -1,15 +1,17 @@
 # Meridian — online
 
-Meridian is a 1v1 board game played on a 19×19 lattice. Blue owns all 19
-points along the left edge, Red owns all 19 along the right edge. Grow a
-network of nodes and edges out from your home edge, cut opponent edges by
-crossing them, and attack opponent nodes by placing directly on them (which
-deletes every edge attached to that node — legal only if it doesn't have too
-many for the current phase's cutting cap). The game runs for exactly 200
-"decisions" (edge+node placements) split into two 100-decision phases —
-Phase 1 caps cutting at 1 opponent edge per move, Phase 2 at 2. Each node is
-worth points equal to its distance in columns from your own home edge, and
-whoever has more total points when the 200 decisions run out wins.
+Meridian is a 1v1 board game on a 19×19 lattice centered on (0,0). Blue
+starts with two nodes at (-9,0) and (-6,0) joined by an edge; Red starts the
+mirror image at (6,0) and (9,0). Grow a network out from there, or attack an
+opponent node by placing directly on it (deleting every edge attached to
+it). Any opponent edge your move breaks must be strictly longer than the
+edge you're placing — no limit on how many you can break in one move, as
+long as each one qualifies. Breaking an edge only removes that edge, plus
+any node it leaves with no edges at all — nothing cascades further. At the
+end of each turn, the total area enclosed by your own edges (draw them,
+flood fill the outside, whatever never gets touched is "enclosed" — computed
+exactly via a planar-arrangement algorithm, not a grid approximation) is
+added to your score. First to 300 points wins.
 
 This is a small static site (`index.html`) plus one serverless function
 (`api/room.js`) that lets two people play together online by sharing a link,

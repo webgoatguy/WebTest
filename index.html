@@ -39,33 +39,25 @@
   }
   header p.tag{margin:5px 0 0;color:var(--text-dim);font-size:14px;}
 
-  .score-row{
-    display:flex; align-items:center; justify-content:space-between;
+  .meter{
     margin-top:16px;
-  }
-  .score-num{ font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; }
-  .score-num.blue{ color:var(--blue); }
-  .score-num.red{ color:var(--red); }
-  .phase-pill{
-    font-size:12px; font-weight:600; padding:4px 12px; border-radius:99px;
-    border:1px solid var(--panel-border); color:var(--text-dim); white-space:nowrap;
-  }
-
-  .progress{
-    margin-top:12px;
-    height:8px;
-    border-radius:4px;
+    height:10px;
+    border-radius:5px;
     background:#1a1f2b;
     position:relative;
     overflow:hidden;
     border:1px solid var(--panel-border);
   }
-  .progress::after{
-    content:''; position:absolute; left:50%; top:0; bottom:0; width:1px;
-    background:var(--gold); opacity:0.6;
+  .meter::after{
+    content:'';
+    position:absolute; left:50%; top:0; bottom:0; width:1px;
+    background:var(--gold); opacity:0.55;
   }
-  .progress-fill{ position:absolute; left:0; top:0; height:100%; width:0%; background:linear-gradient(90deg,#5b6ee8,#8f7bf0); transition:width .3s ease; }
-  .progress-labels{ font-size:12px; color:var(--text-dim); margin-top:7px; text-align:center; font-variant-numeric:tabular-nums; }
+  .meter .fill{ position:absolute; top:0; height:100%; width:0%; transition:width .3s ease; }
+  .meter .fill-blue{ left:0; background:linear-gradient(90deg,#2c7fd6,var(--blue)); }
+  .meter .fill-red{ right:0; background:linear-gradient(90deg,var(--red),#d63a54); }
+  .meter-labels{display:flex;justify-content:space-between;font-size:13px;color:var(--text-dim);margin-top:7px;font-variant-numeric:tabular-nums;}
+  .meter-labels b{color:var(--text);font-weight:600;font-size:14px;}
 
   .board-panel{
     background:var(--panel);
@@ -143,16 +135,16 @@
 <div id="app">
   <header>
     <h1>Meridian</h1>
-    <p class="tag">Claim territory from your home edge — the deeper into enemy ground, the more it's worth.</p>
-    <div class="score-row">
-      <span class="score-num blue" id="blueScore">0</span>
-      <span class="phase-pill" id="phaseLabel">Phase 1</span>
-      <span class="score-num red" id="redScore">0</span>
+    <p class="tag">Enclose territory to score. You can only cut opponent edges shorter than your own.</p>
+    <div class="meter">
+      <div class="fill fill-blue" id="fillBlue"></div>
+      <div class="fill fill-red" id="fillRed"></div>
     </div>
-    <div class="progress">
-      <div class="progress-fill" id="progressFill"></div>
+    <div class="meter-labels">
+      <span><b id="blueScore">0</b> Blue</span>
+      <span>First to 300</span>
+      <span>Red <b id="redScore">0</b></span>
     </div>
-    <div class="progress-labels" id="decisionLabel">Decision 1 of 200</div>
   </header>
 
   <div class="mode-tabs" id="modeTabs">
@@ -210,20 +202,19 @@
   <details class="legend">
     <summary>How to play</summary>
     <ul>
-      <li>Blue starts owning all 19 points along the left edge; Red starts owning all 19 points along the right edge. Tap one of your own nodes, then tap a nearby point (within 3 king-moves) to grow a new edge there. Tap your selected node again to cancel it — any other tap attempts a move from it.</li>
-      <li>Landing on an empty point claims it. Landing on your own point closes a loop. Landing on an opponent's point (any of theirs, including their home-edge nodes) attacks it: every edge attached to that node gets cut, the node itself becomes yours, and it's illegal to attempt if that node has too many edges for the current phase's cap (below).</li>
-      <li>Your edge's path can't pass through one of your own existing nodes, and a brand-new node of yours can't land on one of your own existing edges. You also can't lay a new edge on top of an existing one, yours or theirs. None of this applies to your opponent's nodes or edges — your edge can freely pass through or near their stuff.</li>
-      <li>The game runs for exactly 200 "decisions" (one decision = one edge+node placement), split into two 100-decision phases. In Phase 1 you can cut at most 1 opponent edge per move — from crossing, from an attack, or both combined. In Phase 2, up to 2.</li>
-      <li>Cutting a key edge deletes everything downstream that's no longer connected to that player's home edge.</li>
-      <li>Each node is worth points based on how far it sits from your <em>own</em> home edge — 0 right at home, rising by 1 for each column deeper into enemy territory. Whoever has more total points when the 200 decisions run out wins (a tie is possible).</li>
+      <li>The board is centered on (0,0). Blue starts with two nodes at (-9,0) and (-6,0) joined by an edge; Red starts the same way at (6,0) and (9,0). Tap one of your own nodes, then tap a nearby point (within 3 king-moves) to grow a new edge there. Tap your selected node again to cancel it — any other tap attempts a move from it.</li>
+      <li>Landing on an empty point claims it. Landing on your own point closes a loop. Landing on an opponent's point attacks it: every edge attached to that node gets cut and the node becomes yours.</li>
+      <li>Your edge's path can't pass through one of your own existing nodes, and a brand-new node of yours can't land on one of your own existing edges. You also can't lay a new edge on top of an existing one, yours or theirs. None of this applies to your opponent's stuff — your edge can freely pass through or near it.</li>
+      <li>There's no limit on how many opponent edges one move can break — but your edge can only break an opponent edge that's strictly <em>longer</em> than it. If any edge you'd break is the same length or shorter, the whole move is illegal.</li>
+      <li>Breaking an edge deletes just that edge — nothing cascades. If that leaves a node with no edges at all, that node is removed too.</li>
+      <li>At the end of your turn, the total area enclosed by your own edges (draw them, flood-fill the outside — whatever never gets touched by the flood fill is "enclosed") is added to your score. A simple branch with no loop encloses nothing; a closed loop encloses whatever it surrounds. First to 300 points wins.</li>
     </ul>
   </details>
 </div>
 
 <script>
 (function(){
-  const SIZE=19, CELL=36, PAD=40;
-  const TOTAL_DECISIONS=200, PHASE_LEN=100;
+  const MIN_C=-9, MAX_C=9, CELL=36, PAD=40;
   const COLORS={ blue:'#4da3ff', red:'#ff5470', gold:'#f2c14e', dim:'#7b8494', grid:'#2f3648' };
 
   const svg=document.getElementById('board');
@@ -236,9 +227,8 @@
   const messageEl=document.getElementById('message');
   const blueScoreEl=document.getElementById('blueScore');
   const redScoreEl=document.getElementById('redScore');
-  const phaseLabelEl=document.getElementById('phaseLabel');
-  const progressFillEl=document.getElementById('progressFill');
-  const decisionLabelEl=document.getElementById('decisionLabel');
+  const fillBlueEl=document.getElementById('fillBlue');
+  const fillRedEl=document.getElementById('fillRed');
   const winBannerEl=document.getElementById('winBanner');
   const restartBtn=document.getElementById('restartBtn');
   const undoBtn=document.getElementById('undoBtn');
@@ -262,13 +252,13 @@
     return e;
   }
   function key(x,y){ return x+','+y; }
-  function px(x){ return PAD + x*CELL; }
-  function py(y){ return PAD + (SIZE-1-y)*CELL; }
+  function px(x){ return PAD + (x-MIN_C)*CELL; }
+  function py(y){ return PAD + (MAX_C-y)*CELL; }
   function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi,v)); }
   function capitalize(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
   function clearLayer(layer){ while(layer.firstChild) layer.removeChild(layer.firstChild); }
 
-  let nodes, edges, edgeIdCounter, turnIndex, currentPlayer, movesLeftInTurn, decisionCount, selectedSource, hoverPoint, gameOver, winner;
+  let nodes, edges, edgeIdCounter, turnIndex, currentPlayer, movesLeftInTurn, scores, selectedSource, hoverPoint, gameOver, winner;
   let historyStack, redoStack;
   let mode='local'; // 'local' | 'online'
   let roomId=null, myColor=null, claims={blue:false,red:false};
@@ -276,16 +266,19 @@
 
   function initState(){
     nodes=new Map();
-    for(let y=0;y<SIZE;y++){
-      nodes.set(key(0,y),    {x:0,   y, owner:'blue', isRoot:true});
-      nodes.set(key(SIZE-1,y),{x:SIZE-1,y, owner:'red',  isRoot:true});
-    }
-    edges=[];
-    edgeIdCounter=0;
+    nodes.set(key(-9,0), {x:-9,y:0, owner:'blue', isRoot:true});
+    nodes.set(key(-6,0), {x:-6,y:0, owner:'blue', isRoot:true});
+    nodes.set(key(6,0),  {x:6, y:0, owner:'red',  isRoot:true});
+    nodes.set(key(9,0),  {x:9, y:0, owner:'red',  isRoot:true});
+    edges=[
+      {id:0, owner:'blue', x1:-9,y1:0,x2:-6,y2:0},
+      {id:1, owner:'red',  x1:6, y1:0,x2:9, y2:0},
+    ];
+    edgeIdCounter=2;
     turnIndex=0;
     currentPlayer='blue';
     movesLeftInTurn=1;
-    decisionCount=0;
+    scores={blue:0,red:0};
     selectedSource=null;
     hoverPoint=null;
     gameOver=false;
@@ -294,23 +287,13 @@
     redoStack=[];
   }
 
-  function currentPhase(){ return decisionCount<PHASE_LEN ? 1 : 2; }
-  function computeScore(player){
-    let s=0;
-    for(const [,n] of nodes){
-      if(n.owner!==player) continue;
-      s += player==='blue' ? n.x : (SIZE-1-n.x);
-    }
-    return s;
-  }
-
   // ---------- undo / redo ----------
   function snapshotState(){
     return {
       nodes:[...nodes.entries()].map(([k,v])=>[k,{...v}]),
       edges:edges.map(e=>({...e})),
-      edgeIdCounter, turnIndex, currentPlayer, movesLeftInTurn, decisionCount,
-      gameOver, winner
+      edgeIdCounter, turnIndex, currentPlayer, movesLeftInTurn,
+      scores:{...scores}, gameOver, winner
     };
   }
   function restoreState(s){
@@ -320,7 +303,7 @@
     turnIndex=s.turnIndex;
     currentPlayer=s.currentPlayer;
     movesLeftInTurn=s.movesLeftInTurn;
-    decisionCount=s.decisionCount;
+    scores={...s.scores};
     gameOver=s.gameOver;
     winner=s.winner;
   }
@@ -418,7 +401,7 @@
         claims=newClaims;
         localStorage.setItem(storageKey(roomId), color);
         messageEl.className='message ok';
-        messageEl.textContent = color==='blue' ? 'Blue moves first — tap one of your left-edge nodes to begin.' : "Waiting for Blue's move.";
+        messageEl.textContent = color==='blue' ? 'Blue moves first — tap one of your two starting nodes to begin.' : "Waiting for Blue's move.";
       } else if(res.state){
         applyRoomPayload(res.state);
         knownVersion=res.version;
@@ -577,11 +560,159 @@
   function edgesAt(point){
     return edges.filter(e=>(e.x1===point.x&&e.y1===point.y)||(e.x2===point.x&&e.y2===point.y));
   }
+  function squaredLength(x1,y1,x2,y2){
+    const dx=x2-x1, dy=y2-y1;
+    return dx*dx+dy*dy;
+  }
+
+  // ---------- enclosed-area scoring (exact, via planar arrangement + face tracing) ----------
+  function segIntersectionPoint(p1,p2,p3,p4){
+    const d1x=p2.x-p1.x, d1y=p2.y-p1.y;
+    const d2x=p4.x-p3.x, d2y=p4.y-p3.y;
+    const denom=d1x*d2y-d1y*d2x;
+    if(Math.abs(denom)<1e-12) return null;
+    const EPS=1e-7;
+    const t=((p3.x-p1.x)*d2y-(p3.y-p1.y)*d2x)/denom;
+    const u=((p3.x-p1.x)*d1y-(p3.y-p1.y)*d1x)/denom;
+    if(t<-EPS||t>1+EPS||u<-EPS||u>1+EPS) return null;
+    return {x:p1.x+t*d1x, y:p1.y+t*d1y};
+  }
+
+  function computeEnclosedArea(player){
+    const EPS=1e-7;
+    const ownEdges=edges.filter(e=>e.owner===player);
+    if(ownEdges.length===0) return 0;
+
+    const cutPointsPerEdge=ownEdges.map(e=>[{x:e.x1,y:e.y1},{x:e.x2,y:e.y2}]);
+    for(let i=0;i<ownEdges.length;i++){
+      for(let j=i+1;j<ownEdges.length;j++){
+        const e1=ownEdges[i], e2=ownEdges[j];
+        const ip=segIntersectionPoint(
+          {x:e1.x1,y:e1.y1},{x:e1.x2,y:e1.y2},
+          {x:e2.x1,y:e2.y1},{x:e2.x2,y:e2.y2}
+        );
+        if(ip){ cutPointsPerEdge[i].push(ip); cutPointsPerEdge[j].push(ip); }
+      }
+    }
+
+    const atomicEdges=[];
+    for(let i=0;i<ownEdges.length;i++){
+      const e=ownEdges[i];
+      const p1={x:e.x1,y:e.y1}, p2={x:e.x2,y:e.y2};
+      const dx=p2.x-p1.x, dy=p2.y-p1.y;
+      const len2=dx*dx+dy*dy;
+      const withT=cutPointsPerEdge[i].map(p=>({p, t: len2>0 ? ((p.x-p1.x)*dx+(p.y-p1.y)*dy)/len2 : 0}));
+      withT.sort((a,b)=>a.t-b.t);
+      const deduped=[];
+      for(const item of withT){
+        if(deduped.length===0 || Math.abs(item.t-deduped[deduped.length-1].t)>EPS) deduped.push(item);
+      }
+      for(let k=0;k<deduped.length-1;k++) atomicEdges.push({a:deduped[k].p, b:deduped[k+1].p});
+    }
+
+    const vertexMap=new Map();
+    function pointKey(p){ return Math.round(p.x/EPS)+','+Math.round(p.y/EPS); }
+    function getVertex(p){
+      const k=pointKey(p);
+      if(!vertexMap.has(k)) vertexMap.set(k, {x:p.x,y:p.y,id:vertexMap.size});
+      return vertexMap.get(k);
+    }
+
+    const edgeSet=new Set();
+    const graphEdges=[];
+    for(const ae of atomicEdges){
+      const va=getVertex(ae.a), vb=getVertex(ae.b);
+      if(va.id===vb.id) continue;
+      const ek=va.id<vb.id ? va.id+'_'+vb.id : vb.id+'_'+va.id;
+      if(edgeSet.has(ek)) continue;
+      edgeSet.add(ek);
+      graphEdges.push({u:va, v:vb});
+    }
+    if(graphEdges.length===0) return 0;
+
+    const adj=new Map();
+    function addAdj(from,to){
+      if(!adj.has(from.id)) adj.set(from.id, []);
+      adj.get(from.id).push({to, angle:Math.atan2(to.y-from.y, to.x-from.x)});
+    }
+    for(const ge of graphEdges){ addAdj(ge.u, ge.v); addAdj(ge.v, ge.u); }
+    for(const [,list] of adj) list.sort((a,b)=>a.angle-b.angle);
+
+    const parent=new Map();
+    function find(x){ while(parent.get(x)!==x){ parent.set(x, parent.get(parent.get(x))); x=parent.get(x); } return x; }
+    function union(a,b){ const ra=find(a), rb=find(b); if(ra!==rb) parent.set(ra, rb); }
+    for(const ge of graphEdges){
+      if(!parent.has(ge.u.id)) parent.set(ge.u.id, ge.u.id);
+      if(!parent.has(ge.v.id)) parent.set(ge.v.id, ge.v.id);
+      union(ge.u.id, ge.v.id);
+    }
+
+    const visited=new Set();
+    const faces=[];
+    const maxSteps=graphEdges.length*2+10;
+    for(const ge of graphEdges){
+      for(const [startFrom, startTo] of [[ge.u,ge.v],[ge.v,ge.u]]){
+        const startKey=startFrom.id+'_'+startTo.id;
+        if(visited.has(startKey)) continue;
+        const faceVerts=[startFrom];
+        let curFrom=startFrom, curTo=startTo, steps=0, ok=true;
+        while(true){
+          visited.add(curFrom.id+'_'+curTo.id);
+          faceVerts.push(curTo);
+          const neighbors=adj.get(curTo.id);
+          const incomingAngle=Math.atan2(curFrom.y-curTo.y, curFrom.x-curTo.x);
+          let idx=-1, bestDiff=Infinity;
+          for(let k=0;k<neighbors.length;k++){
+            if(neighbors[k].to.id!==curFrom.id) continue;
+            const diff=Math.abs(neighbors[k].angle-incomingAngle);
+            if(diff<bestDiff){ bestDiff=diff; idx=k; }
+          }
+          if(idx===-1){ ok=false; break; }
+          const nextIdx=(idx-1+neighbors.length)%neighbors.length;
+          const nextTo=neighbors[nextIdx].to;
+          curFrom=curTo; curTo=nextTo; steps++;
+          if(curFrom.id===startFrom.id && curTo.id===startTo.id) break;
+          if(steps>maxSteps){ ok=false; break; }
+        }
+        if(!ok) continue;
+        let area2=0;
+        for(let k=0;k<faceVerts.length-1;k++){
+          const p=faceVerts[k], q=faceVerts[k+1];
+          area2 += p.x*q.y - q.x*p.y;
+        }
+        const signedArea=area2/2;
+        if(signedArea>EPS) faces.push({verts:faceVerts.slice(0,-1), area:signedArea, componentId:find(startFrom.id)});
+      }
+    }
+
+    function pointInPolygon(pt, poly){
+      let inside=false;
+      for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+        const xi=poly[i].x, yi=poly[i].y, xj=poly[j].x, yj=poly[j].y;
+        const intersect=((yi>pt.y)!==(yj>pt.y)) && (pt.x < (xj-xi)*(pt.y-yi)/(yj-yi)+xi);
+        if(intersect) inside=!inside;
+      }
+      return inside;
+    }
+    function centroid(verts){
+      let cx=0, cy=0;
+      for(const v of verts){ cx+=v.x; cy+=v.y; }
+      return {x:cx/verts.length, y:cy/verts.length};
+    }
+
+    let totalArea=0;
+    for(const f of faces){
+      const c=centroid(f.verts);
+      const nestedInOther=faces.some(g=>g!==f && g.componentId!==f.componentId && g.area>f.area && pointInPolygon(c, g.verts));
+      if(!nestedInOther) totalArea+=f.area;
+    }
+    return totalArea;
+  }
 
   // ---------- rules ----------
   function checkMove(source, target, player){
     const opponent = player==='blue' ? 'red' : 'blue';
-    if(target.x<0||target.x>18||target.y<0||target.y>18) return {legal:false, reason:"That's off the board."};
+    if(target.x<MIN_C||target.x>MAX_C||target.y<MIN_C||target.y>MAX_C) return {legal:false, reason:"That's off the board."};
     if(source.x===target.x && source.y===target.y) return {legal:false, reason:'Pick a point other than your source.'};
     const dist=Math.max(Math.abs(target.x-source.x), Math.abs(target.y-source.y));
     if(dist>3) return {legal:false, reason:'Too far — stay within 3 king-moves of your source.'};
@@ -621,46 +752,36 @@
     const crossHits=edges.filter(e=>e.owner===opponent && !nodeEdgeIds.has(e.id) &&
       segmentsIntersect(source, target, {x:e.x1,y:e.y1}, {x:e.x2,y:e.y2}));
 
-    const totalCuts=nodeEdges.length+crossHits.length;
-    const phase=currentPhase();
-    const cap=phase===1?1:2;
-    if(totalCuts>cap){
-      return {legal:false, reason:`That would cut ${totalCuts} opponent edge${totalCuts>1?'s':''} — Phase ${phase} allows at most ${cap}.`};
+    const newLenSq=squaredLength(source.x,source.y,target.x,target.y);
+    const allBroken=[...nodeEdges, ...crossHits];
+    for(const e of allBroken){
+      if(squaredLength(e.x1,e.y1,e.x2,e.y2) <= newLenSq){
+        return {legal:false, reason:"That would break an opponent edge that's the same length or shorter — yours must be strictly shorter to break it."};
+      }
     }
+
     return {legal:true, mode, crossHits, nodeEdges, wasRoot: mode==='attack' ? !!tNode.isRoot : false};
   }
 
-  function cascadeCleanup(player){
-    const rootKeys=[];
-    for(const [k,n] of nodes) if(n.owner===player && n.isRoot) rootKeys.push(k);
-    const adj=new Map();
-    const addAdj=(a,b)=>{ if(!adj.has(a)) adj.set(a,[]); adj.get(a).push(b); };
-    for(const e of edges){
-      if(e.owner!==player) continue;
-      const a=key(e.x1,e.y1), b=key(e.x2,e.y2);
-      addAdj(a,b); addAdj(b,a);
+  function localCleanup(removedEdges, skipKey){
+    const candidates=new Set();
+    for(const e of removedEdges){
+      candidates.add(key(e.x1,e.y1));
+      candidates.add(key(e.x2,e.y2));
     }
-    const visited=new Set(rootKeys);
-    const queue=[...rootKeys];
-    while(queue.length){
-      const cur=queue.shift();
-      for(const nxt of (adj.get(cur)||[])){
-        if(!visited.has(nxt)){ visited.add(nxt); queue.push(nxt); }
-      }
+    candidates.delete(skipKey);
+    for(const k of candidates){
+      const n=nodes.get(k);
+      if(!n) continue;
+      const stillConnected=edges.some(e=>(e.x1===n.x&&e.y1===n.y)||(e.x2===n.x&&e.y2===n.y));
+      if(!stillConnected) nodes.delete(k);
     }
-    for(const [k,n] of [...nodes.entries()]){
-      if(n.owner===player && !n.isRoot && !visited.has(k)) nodes.delete(k);
-    }
-    edges=edges.filter(e=>{
-      if(e.owner!==player) return true;
-      return visited.has(key(e.x1,e.y1)) && visited.has(key(e.x2,e.y2));
-    });
   }
 
   function describeMove(result, player){
     let base;
     if(result.mode==='loop') base=`${capitalize(player)} closes a loop`;
-    else if(result.mode==='attack') base = result.wasRoot ? `${capitalize(player)} destroys a home node` : `${capitalize(player)} attacks a node`;
+    else if(result.mode==='attack') base = result.wasRoot ? `${capitalize(player)} destroys a starting node` : `${capitalize(player)} attacks a node`;
     else base=`${capitalize(player)} extends the network`;
     const totalCuts=result.nodeEdges.length+result.crossHits.length;
     if(totalCuts>0) base+= ` and cuts ${totalCuts} edge${totalCuts>1?'s':''}`;
@@ -673,8 +794,11 @@
 
     const opponent=player==='blue' ? 'red' : 'blue';
     const tKey=key(target.x,target.y);
-    const toDelete=new Set([...result.nodeEdges, ...result.crossHits].map(e=>e.id));
+    const removedEdges=[...result.nodeEdges, ...result.crossHits];
+    const toDelete=new Set(removedEdges.map(e=>e.id));
     edges=edges.filter(e=>!toDelete.has(e.id));
+
+    localCleanup(removedEdges, tKey);
 
     if(result.mode==='claim'){
       nodes.set(tKey, {x:target.x,y:target.y,owner:player,isRoot:false});
@@ -685,22 +809,20 @@
     }
     edges.push({id:edgeIdCounter++, owner:player, x1:source.x,y1:source.y,x2:target.x,y2:target.y});
 
-    cascadeCleanup(opponent);
-
-    decisionCount++;
     movesLeftInTurn--;
     let msg=describeMove(result, player);
 
     if(movesLeftInTurn<=0){
       turnIndex++;
+      const area=Math.round(computeEnclosedArea(player)*10)/10;
+      scores[player]+=area;
+      msg += ` +${area.toFixed(1)} enclosed area (${scores[player].toFixed(1)} total).`;
+      if(scores[player]>=300 && !gameOver){
+        gameOver=true;
+        winner=player;
+      }
       currentPlayer=opponent;
       movesLeftInTurn=2;
-    }
-
-    if(decisionCount>=TOTAL_DECISIONS && !gameOver){
-      gameOver=true;
-      const bs=computeScore('blue'), rs=computeScore('red');
-      winner = bs===rs ? 'tie' : (bs>rs ? 'blue' : 'red');
     }
 
     selectedSource=null; hoverPoint=null;
@@ -712,32 +834,20 @@
 
   // ---------- rendering ----------
   function renderScoreAndTurn(){
-    const bs=computeScore('blue'), rs=computeScore('red');
-    blueScoreEl.textContent=bs;
-    redScoreEl.textContent=rs;
-    const phase=currentPhase();
-    progressFillEl.style.width=(Math.min(decisionCount,TOTAL_DECISIONS)/TOTAL_DECISIONS*100)+'%';
+    blueScoreEl.textContent=scores.blue.toFixed(1);
+    redScoreEl.textContent=scores.red.toFixed(1);
+    fillBlueEl.style.width=(Math.min(scores.blue,300)/300*50)+'%';
+    fillRedEl.style.width=(Math.min(scores.red,300)/300*50)+'%';
     undoBtn.disabled = historyStack.length===0;
     redoBtn.disabled = redoStack.length===0;
 
     if(gameOver){
-      phaseLabelEl.textContent='Final';
-      decisionLabelEl.textContent=`${decisionCount} of ${TOTAL_DECISIONS} decisions played`;
       turnIndicatorEl.innerHTML='Game over';
-      if(winner==='tie'){
-        winBannerEl.textContent=`Tie game — ${bs} to ${rs}.`;
-        winBannerEl.style.color=COLORS.dim;
-        winBannerEl.style.borderColor=COLORS.dim;
-      } else {
-        const wScore = winner==='blue'?bs:rs, lScore = winner==='blue'?rs:bs;
-        winBannerEl.textContent=`${capitalize(winner)} wins, ${wScore} to ${lScore}!`;
-        winBannerEl.style.color = winner==='blue' ? COLORS.blue : COLORS.red;
-        winBannerEl.style.borderColor = winner==='blue' ? COLORS.blue : COLORS.red;
-      }
+      winBannerEl.textContent=`${capitalize(winner)} wins — first to 300 points!`;
+      winBannerEl.style.color = winner==='blue' ? COLORS.blue : COLORS.red;
+      winBannerEl.style.borderColor = winner==='blue' ? COLORS.blue : COLORS.red;
       winBannerEl.classList.add('show');
     } else {
-      phaseLabelEl.textContent=`Phase ${phase}`;
-      decisionLabelEl.textContent=`Decision ${decisionCount+1} of ${TOTAL_DECISIONS} — cut cap ${phase===1?1:2}`;
       winBannerEl.classList.remove('show');
       const color = currentPlayer==='blue' ? COLORS.blue : COLORS.red;
       turnIndicatorEl.innerHTML=`<b style="color:${color}">${capitalize(currentPlayer)}</b>'s move — ${movesLeftInTurn} to place`;
@@ -746,8 +856,8 @@
 
   function drawGridOnce(){
     clearLayer(gridLayer);
-    for(let x=0;x<SIZE;x++){
-      for(let y=0;y<SIZE;y++){
+    for(let x=MIN_C;x<=MAX_C;x++){
+      for(let y=MIN_C;y<=MAX_C;y++){
         gridLayer.appendChild(el('circle',{cx:px(x), cy:py(y), r:1.6, fill:COLORS.grid}));
       }
     }
@@ -756,8 +866,8 @@
   function drawRangeHint(){
     clearLayer(rangeLayer);
     if(!selectedSource || gameOver) return;
-    const x0=clamp(selectedSource.x-3,0,18), x1=clamp(selectedSource.x+3,0,18);
-    const y0=clamp(selectedSource.y-3,0,18), y1=clamp(selectedSource.y+3,0,18);
+    const x0=clamp(selectedSource.x-3,MIN_C,MAX_C), x1=clamp(selectedSource.x+3,MIN_C,MAX_C);
+    const y0=clamp(selectedSource.y-3,MIN_C,MAX_C), y1=clamp(selectedSource.y+3,MIN_C,MAX_C);
     const rx=px(x0), ry=py(y1);
     const rw=px(x1)-px(x0), rh=py(y0)-py(y1);
     rangeLayer.appendChild(el('rect',{x:rx,y:ry,width:rw,height:rh, fill:'none', stroke:COLORS.dim, 'stroke-width':1, 'stroke-dasharray':'4 4', opacity:0.5}));
@@ -814,9 +924,9 @@
     return pt.matrixTransform(ctm);
   }
   function toGrid(p){
-    const gx=Math.round((p.x-PAD)/CELL);
-    const gy=SIZE-1-Math.round((p.y-PAD)/CELL);
-    return {x:clamp(gx,0,18), y:clamp(gy,0,18)};
+    const gx=Math.round((p.x-PAD)/CELL)+MIN_C;
+    const gy=MAX_C-Math.round((p.y-PAD)/CELL);
+    return {x:clamp(gx,MIN_C,MAX_C), y:clamp(gy,MIN_C,MAX_C)};
   }
 
   svg.addEventListener('pointerdown', (evt)=>{
@@ -883,7 +993,7 @@
     history.replaceState(null,'',location.pathname);
     initState();
     messageEl.className='message ok';
-    messageEl.textContent='Blue moves first — tap one of your left-edge nodes to begin.';
+    messageEl.textContent='Blue moves first — tap one of your two starting nodes to begin.';
     updateOnlineUI(); render();
   });
   tabOnline.addEventListener('click', ()=>{
@@ -920,7 +1030,7 @@
     joinRoom(urlRoom.toUpperCase());
   } else {
     messageEl.className='message ok';
-    messageEl.textContent='Blue moves first — tap one of your left-edge nodes to begin.';
+    messageEl.textContent='Blue moves first — tap one of your two starting nodes to begin.';
     updateOnlineUI();
     render();
   }
