@@ -755,7 +755,7 @@
     const newLenSq=squaredLength(source.x,source.y,target.x,target.y);
     const allBroken=[...nodeEdges, ...crossHits];
     for(const e of allBroken){
-      if(squaredLength(e.x1,e.y1,e.x2,e.y2) <= newLenSq){
+      if(squaredLength(e.x1,e.y1,e.x2,e.y2) < newLenSq){
         return {legal:false, reason:"That would break an opponent edge that's the same length or shorter — yours must be strictly shorter to break it."};
       }
     }
