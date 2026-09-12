@@ -98,6 +98,9 @@
   }
   .win-banner.show{display:block;}
 
+  @keyframes marchingAnts{ to{ stroke-dashoffset:-16; } }
+  .shield{ animation:marchingAnts 0.7s linear infinite; }
+
   .mode-tabs{ display:flex; gap:6px; }
   button.tab-btn{
     background:none; border:1px solid var(--panel-border); color:var(--text-dim);
@@ -135,7 +138,7 @@
 <div id="app">
   <header>
     <h1>Meridian</h1>
-    <p class="tag">Enclose territory to score. You can only cut opponent edges shorter than your own.</p>
+    <p class="tag">Enclose territory to score. Cut at most one opponent edge per move — and never one placed last turn.</p>
     <div class="meter">
       <div class="fill fill-blue" id="fillBlue"></div>
       <div class="fill fill-red" id="fillRed"></div>
@@ -205,7 +208,8 @@
       <li>The board is centered on (0,0). Blue starts with two nodes at (-9,0) and (-6,0) joined by an edge; Red starts the same way at (6,0) and (9,0). Tap one of your own nodes, then tap a nearby point (within 3 king-moves) to grow a new edge there. Tap your selected node again to cancel it — any other tap attempts a move from it.</li>
       <li>Landing on an empty point claims it. Landing on your own point closes a loop. Landing on an opponent's point attacks it: every edge attached to that node gets cut and the node becomes yours.</li>
       <li>Your edge's path can't pass through one of your own existing nodes, and a brand-new node of yours can't land on one of your own existing edges. You also can't lay a new edge on top of an existing one, yours or theirs. None of this applies to your opponent's stuff — your edge can freely pass through or near it.</li>
-      <li>There's no limit on how many opponent edges one move can break — but your edge can only break an opponent edge that's strictly <em>longer</em> than it. If any edge you'd break is the same length or shorter, the whole move is illegal.</li>
+      <li>There's no limit on edge length, but a single move can break at most 1 opponent edge — whether from a plain crossing or from attacking a node with more than one edge attached (that would break too many at once, so it's illegal).</li>
+      <li>An edge placed during your opponent's last turn is invincible (shown with a dashed white glow) — trying to break it is an illegal move. It becomes breakable again once that turn passes.</li>
       <li>Breaking an edge deletes just that edge — nothing cascades. If that leaves a node with no edges at all, that node is removed too.</li>
       <li>At the end of your turn, the total area enclosed by your own edges (draw them, flood-fill the outside — whatever never gets touched by the flood fill is "enclosed") is added to your score. A simple branch with no loop encloses nothing; a closed loop encloses whatever it surrounds. First to 300 points wins.</li>
     </ul>
@@ -560,10 +564,6 @@
   function edgesAt(point){
     return edges.filter(e=>(e.x1===point.x&&e.y1===point.y)||(e.x2===point.x&&e.y2===point.y));
   }
-  function squaredLength(x1,y1,x2,y2){
-    const dx=x2-x1, dy=y2-y1;
-    return dx*dx+dy*dy;
-  }
 
   // ---------- enclosed-area scoring (exact, via planar arrangement + face tracing) ----------
   function segIntersectionPoint(p1,p2,p3,p4){
@@ -752,12 +752,12 @@
     const crossHits=edges.filter(e=>e.owner===opponent && !nodeEdgeIds.has(e.id) &&
       segmentsIntersect(source, target, {x:e.x1,y:e.y1}, {x:e.x2,y:e.y2}));
 
-    const newLenSq=squaredLength(source.x,source.y,target.x,target.y);
     const allBroken=[...nodeEdges, ...crossHits];
-    for(const e of allBroken){
-      if(squaredLength(e.x1,e.y1,e.x2,e.y2) < newLenSq){
-        return {legal:false, reason:"That would break an opponent edge that's the same length or shorter — yours must be strictly shorter to break it."};
-      }
+    if(allBroken.some(e=>e.turnPlaced===turnIndex-1)){
+      return {legal:false, reason:"That edge was placed last turn and is still invincible — it can't be broken yet."};
+    }
+    if(allBroken.length>1){
+      return {legal:false, reason:`That would break ${allBroken.length} opponent edges — the limit is 1 per move.`};
     }
 
     return {legal:true, mode, crossHits, nodeEdges, wasRoot: mode==='attack' ? !!tNode.isRoot : false};
@@ -807,7 +807,7 @@
       n.owner=player;
       n.isRoot=false;
     }
-    edges.push({id:edgeIdCounter++, owner:player, x1:source.x,y1:source.y,x2:target.x,y2:target.y});
+    edges.push({id:edgeIdCounter++, owner:player, x1:source.x,y1:source.y,x2:target.x,y2:target.y, turnPlaced:turnIndex});
 
     movesLeftInTurn--;
     let msg=describeMove(result, player);
@@ -878,6 +878,9 @@
     for(const e of edges){
       const color = e.owner==='blue' ? COLORS.blue : COLORS.red;
       edgeLayer.appendChild(el('line',{x1:px(e.x1),y1:py(e.y1),x2:px(e.x2),y2:py(e.y2), stroke:color, 'stroke-width':3.5, 'stroke-linecap':'round', filter:'url(#glow)'}));
+      if(e.turnPlaced===turnIndex-1){
+        edgeLayer.appendChild(el('line',{x1:px(e.x1),y1:py(e.y1),x2:px(e.x2),y2:py(e.y2), stroke:'rgba(255,255,255,0.85)', 'stroke-width':1.6, 'stroke-dasharray':'5 5', 'stroke-linecap':'round', class:'shield'}));
+      }
     }
   }
 

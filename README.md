@@ -4,14 +4,14 @@ Meridian is a 1v1 board game on a 19×19 lattice centered on (0,0). Blue
 starts with two nodes at (-9,0) and (-6,0) joined by an edge; Red starts the
 mirror image at (6,0) and (9,0). Grow a network out from there, or attack an
 opponent node by placing directly on it (deleting every edge attached to
-it). Any opponent edge your move breaks must be strictly longer than the
-edge you're placing — no limit on how many you can break in one move, as
-long as each one qualifies. Breaking an edge only removes that edge, plus
-any node it leaves with no edges at all — nothing cascades further. At the
-end of each turn, the total area enclosed by your own edges (draw them,
-flood fill the outside, whatever never gets touched is "enclosed" — computed
-exactly via a planar-arrangement algorithm, not a grid approximation) is
-added to your score. First to 300 points wins.
+it). A single move can break at most 1 opponent edge, and an edge placed
+during your opponent's last turn is invincible (shown with a dashed white
+glow) — trying to break it is illegal. Breaking an edge only removes that
+edge, plus any node it leaves with no edges at all — nothing cascades
+further. At the end of each turn, the total area enclosed by your own edges
+(draw them, flood fill the outside, whatever never gets touched is
+"enclosed" — computed exactly via a planar-arrangement algorithm, not a grid
+approximation) is added to your score. First to 300 points wins.
 
 This is a small static site (`index.html`) plus one serverless function
 (`api/room.js`) that lets two people play together online by sharing a link,
