@@ -39,25 +39,13 @@
   }
   header p.tag{margin:5px 0 0;color:var(--text-dim);font-size:14px;}
 
-  .meter{
-    margin-top:16px;
-    height:10px;
-    border-radius:5px;
-    background:#1a1f2b;
-    position:relative;
-    overflow:hidden;
-    border:1px solid var(--panel-border);
+  .stats-row{
+    display:flex; justify-content:space-between; align-items:baseline;
+    margin-top:16px; font-size:13px; color:var(--text-dim); font-variant-numeric:tabular-nums;
   }
-  .meter::after{
-    content:'';
-    position:absolute; left:50%; top:0; bottom:0; width:1px;
-    background:var(--gold); opacity:0.55;
-  }
-  .meter .fill{ position:absolute; top:0; height:100%; width:0%; transition:width .3s ease; }
-  .meter .fill-blue{ left:0; background:linear-gradient(90deg,#2c7fd6,var(--blue)); }
-  .meter .fill-red{ right:0; background:linear-gradient(90deg,var(--red),#d63a54); }
-  .meter-labels{display:flex;justify-content:space-between;font-size:13px;color:var(--text-dim);margin-top:7px;font-variant-numeric:tabular-nums;}
-  .meter-labels b{color:var(--text);font-weight:600;font-size:14px;}
+  .stats-row b{ color:var(--text); font-weight:600; font-size:15px; }
+  .stats-row .stat.blue b{ color:var(--blue); }
+  .stats-row .stat.red b{ color:var(--red); }
 
   .board-panel{
     background:var(--panel);
@@ -139,14 +127,10 @@
   <header>
     <h1>Meridian</h1>
     <p class="tag">Enclose territory to score. Cut at most one opponent edge per move — and never one placed last turn.</p>
-    <div class="meter">
-      <div class="fill fill-blue" id="fillBlue"></div>
-      <div class="fill fill-red" id="fillRed"></div>
-    </div>
-    <div class="meter-labels">
-      <span><b id="blueScore">0</b> Blue</span>
-      <span>First to 300</span>
-      <span>Red <b id="redScore">0</b></span>
+    <div class="stats-row">
+      <span class="stat blue"><b id="blueScore">0.0</b> Blue</span>
+      <span class="stat action">Action <b id="actionCount">0</b></span>
+      <span class="stat red">Red <b id="redScore">0.0</b></span>
     </div>
   </header>
 
@@ -211,7 +195,8 @@
       <li>There's no limit on edge length, but a single move can break at most 1 opponent edge — whether from a plain crossing or from attacking a node with more than one edge attached (that would break too many at once, so it's illegal).</li>
       <li>An edge placed during your opponent's last turn is invincible (shown with a dashed white glow) — trying to break it is an illegal move. It becomes breakable again once that turn passes.</li>
       <li>Breaking an edge deletes just that edge — nothing cascades. If that leaves a node with no edges at all, that node is removed too.</li>
-      <li>At the end of your turn, the total area enclosed by your own edges (draw them, flood-fill the outside — whatever never gets touched by the flood fill is "enclosed") is added to your score. A simple branch with no loop encloses nothing; a closed loop encloses whatever it surrounds. First to 300 points wins.</li>
+      <li>At the end of your turn, the total area enclosed by your own edges (draw them, flood-fill the outside — whatever never gets touched by the flood fill is "enclosed") is added to your score. A simple branch with no loop encloses nothing; a closed loop encloses whatever it surrounds. It's just a running tally — there's no target to hit.</li>
+      <li>The "Action" counter at the top counts every single edge placed by either side, in order — Blue's opening edge is action 1, Red's two replies are actions 2 and 3, and so on.</li>
     </ul>
   </details>
 </div>
@@ -231,8 +216,7 @@
   const messageEl=document.getElementById('message');
   const blueScoreEl=document.getElementById('blueScore');
   const redScoreEl=document.getElementById('redScore');
-  const fillBlueEl=document.getElementById('fillBlue');
-  const fillRedEl=document.getElementById('fillRed');
+  const actionCountEl=document.getElementById('actionCount');
   const winBannerEl=document.getElementById('winBanner');
   const restartBtn=document.getElementById('restartBtn');
   const undoBtn=document.getElementById('undoBtn');
@@ -262,7 +246,7 @@
   function capitalize(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
   function clearLayer(layer){ while(layer.firstChild) layer.removeChild(layer.firstChild); }
 
-  let nodes, edges, edgeIdCounter, turnIndex, currentPlayer, movesLeftInTurn, scores, selectedSource, hoverPoint, gameOver, winner;
+  let nodes, edges, edgeIdCounter, turnIndex, currentPlayer, movesLeftInTurn, scores, actionCount, selectedSource, hoverPoint, gameOver, winner;
   let historyStack, redoStack;
   let mode='local'; // 'local' | 'online'
   let roomId=null, myColor=null, claims={blue:false,red:false};
@@ -283,6 +267,7 @@
     currentPlayer='blue';
     movesLeftInTurn=1;
     scores={blue:0,red:0};
+    actionCount=0;
     selectedSource=null;
     hoverPoint=null;
     gameOver=false;
@@ -297,7 +282,7 @@
       nodes:[...nodes.entries()].map(([k,v])=>[k,{...v}]),
       edges:edges.map(e=>({...e})),
       edgeIdCounter, turnIndex, currentPlayer, movesLeftInTurn,
-      scores:{...scores}, gameOver, winner
+      scores:{...scores}, actionCount, gameOver, winner
     };
   }
   function restoreState(s){
@@ -308,6 +293,7 @@
     currentPlayer=s.currentPlayer;
     movesLeftInTurn=s.movesLeftInTurn;
     scores={...s.scores};
+    actionCount=s.actionCount;
     gameOver=s.gameOver;
     winner=s.winner;
   }
@@ -809,6 +795,7 @@
     }
     edges.push({id:edgeIdCounter++, owner:player, x1:source.x,y1:source.y,x2:target.x,y2:target.y, turnPlaced:turnIndex});
 
+    actionCount++;
     movesLeftInTurn--;
     let msg=describeMove(result, player);
 
@@ -817,10 +804,6 @@
       const area=Math.round(computeEnclosedArea(player)*10)/10;
       scores[player]+=area;
       msg += ` +${area.toFixed(1)} enclosed area (${scores[player].toFixed(1)} total).`;
-      if(scores[player]>=300 && !gameOver){
-        gameOver=true;
-        winner=player;
-      }
       currentPlayer=opponent;
       movesLeftInTurn=2;
     }
@@ -836,8 +819,7 @@
   function renderScoreAndTurn(){
     blueScoreEl.textContent=scores.blue.toFixed(1);
     redScoreEl.textContent=scores.red.toFixed(1);
-    fillBlueEl.style.width=(Math.min(scores.blue,300)/300*50)+'%';
-    fillRedEl.style.width=(Math.min(scores.red,300)/300*50)+'%';
+    actionCountEl.textContent=actionCount;
     undoBtn.disabled = historyStack.length===0;
     redoBtn.disabled = redoStack.length===0;
 

@@ -11,7 +11,9 @@ edge, plus any node it leaves with no edges at all — nothing cascades
 further. At the end of each turn, the total area enclosed by your own edges
 (draw them, flood fill the outside, whatever never gets touched is
 "enclosed" — computed exactly via a planar-arrangement algorithm, not a grid
-approximation) is added to your score. First to 300 points wins.
+approximation) is added to your running score, shown at the top alongside an
+action counter that numbers every single edge placed by either side in
+order. There's no fixed win condition — it's an open-ended running tally.
 
 This is a small static site (`index.html`) plus one serverless function
 (`api/room.js`) that lets two people play together online by sharing a link,
