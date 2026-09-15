@@ -299,21 +299,25 @@
   }
   function undo(){
     if(historyStack.length===0) return;
+    if(mode==='online' && submitting) return;
     redoStack.push(snapshotState());
     restoreState(historyStack.pop());
     selectedSource=null; hoverPoint=null;
     messageEl.className='message ok';
     messageEl.textContent='Move undone.';
     render();
+    if(mode==='online') syncCommit();
   }
   function redo(){
     if(redoStack.length===0) return;
+    if(mode==='online' && submitting) return;
     historyStack.push(snapshotState());
     restoreState(redoStack.pop());
     selectedSource=null; hoverPoint=null;
     messageEl.className='message ok';
     messageEl.textContent='Move redone.';
     render();
+    if(mode==='online') syncCommit();
   }
 
   // ---------- online: networking ----------
@@ -341,7 +345,12 @@
   }
 
   function buildRoomPayload(){ return { ...snapshotState(), claims:{...claims} }; }
-  function applyRoomPayload(payload){
+  function applyRoomPayload(payload, opts){
+    const trackHistory = !opts || opts.trackHistory!==false;
+    if(trackHistory){
+      historyStack.push(snapshotState());
+      redoStack=[];
+    }
     restoreState(payload);
     claims = payload.claims ? {...payload.claims} : {blue:false,red:false};
   }
@@ -349,12 +358,10 @@
   function updateOnlineUI(){
     if(mode!=='online'){
       onlinePanel.style.display='none';
-      undoBtn.style.display=''; redoBtn.style.display='';
       restartBtn.disabled=false;
       return;
     }
     onlinePanel.style.display='';
-    undoBtn.style.display='none'; redoBtn.style.display='none';
     if(!roomId){
       lobbyCreate.style.display=''; lobbyPick.style.display='none'; roomStatus.style.display='none';
       restartBtn.disabled=true;
@@ -379,7 +386,7 @@
     try{
       const latest = await apiGetRoom(roomId);
       if(!latest.exists){ messageEl.className='message'; messageEl.textContent='This room no longer exists.'; return; }
-      applyRoomPayload(latest.state);
+      applyRoomPayload(latest.state, {trackHistory:false});
       knownVersion=latest.version;
       if(claims[color]){ updateOnlineUI(); render(); return; }
       const newClaims={...claims, [color]:true};
@@ -435,7 +442,7 @@
         return;
       }
       roomId=id; knownVersion=res.version;
-      applyRoomPayload(res.state);
+      applyRoomPayload(res.state, {trackHistory:false});
       const remembered=localStorage.getItem(storageKey(id));
       if(remembered && claims[remembered]){
         myColor=remembered;

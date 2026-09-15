@@ -30,9 +30,11 @@ one device).
   browser, then pushed to a small shared store. Both browsers poll for
   updates every ~1.5 seconds, so a move shows up on the other screen shortly
   after it's made.
-- **Undo/redo are turned off online** — rewriting a move your opponent
-  already saw wouldn't make sense over a shared connection. They still work
-  normally in local hotseat mode.
+- **Undo/redo work online too, and either player can undo either side's
+  moves** — this is a playtesting tool, not a competitive product, so misclicks
+  are meant to be cheap to fix. Whoever clicks undo reverts the shared board
+  for both of you; if your view is out of date when you click, you'll get a
+  "board just changed" message rather than a corrupted board.
 - **New game** resets the room for both players and keeps the same color
   assignments.
 - Rooms expire automatically after 7 days of inactivity — nothing to clean
