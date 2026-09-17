@@ -120,6 +120,32 @@
   }
   .room-status-text .pill.blue{ color:var(--blue); border-color:var(--blue); }
   .room-status-text .pill.red{ color:var(--red); border-color:var(--red); }
+
+  .clocks-panel{ display:flex; gap:10px; flex-wrap:wrap; }
+  .clock-block{
+    flex:1; min-width:150px;
+    background:var(--panel); border:1px solid var(--panel-border); border-radius:8px;
+    padding:12px; text-align:center;
+  }
+  #blueClockBlock.active{ border-color:var(--blue); box-shadow:0 0 0 1px var(--blue); }
+  #redClockBlock.active{ border-color:var(--red); box-shadow:0 0 0 1px var(--red); }
+  .clock-label{ font-size:12px; font-weight:600; }
+  .clock-label.blue{ color:var(--blue); }
+  .clock-label.red{ color:var(--red); }
+  .clock-time{ font-size:28px; font-weight:700; font-variant-numeric:tabular-nums; color:var(--text); margin-top:2px; }
+  .clock-time.negative{ color:var(--warn); }
+  .clock-btn-row{ display:flex; gap:4px; justify-content:center; margin-top:8px; }
+  button.clock-btn{
+    background:none; border:1px solid var(--panel-border); color:var(--text-dim);
+    padding:4px 7px; border-radius:5px; font-size:11px; cursor:pointer;
+  }
+  button.clock-btn:hover:not(:disabled){ color:var(--text); border-color:var(--text-dim); }
+  .clock-settings-row{ display:flex; gap:10px; justify-content:center; margin-top:9px; font-size:11px; color:var(--text-dim); }
+  .clock-settings-row label{ display:flex; align-items:center; gap:4px; }
+  .clock-settings-row input{
+    width:40px; background:#1a1f2b; border:1px solid var(--panel-border); border-radius:4px;
+    color:var(--text); font-size:12px; padding:3px 4px; font-variant-numeric:tabular-nums;
+  }
 </style>
 </head>
 <body>
@@ -154,6 +180,37 @@
       <div class="room-row">
         <span class="room-status-text" id="roomStatusText"></span>
         <button class="ghost-btn" id="copyLinkBtn">Copy invite link</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="clocks-panel" id="clocksPanel" style="display:none;">
+    <div class="clock-block" id="blueClockBlock">
+      <div class="clock-label blue">Blue</div>
+      <div class="clock-time" id="blueClockTime">10:00</div>
+      <div class="clock-btn-row">
+        <button class="clock-btn" id="blueMinus60">-1m</button>
+        <button class="clock-btn" id="blueMinus10">-10s</button>
+        <button class="clock-btn" id="bluePlus10">+10s</button>
+        <button class="clock-btn" id="bluePlus60">+1m</button>
+      </div>
+      <div class="clock-settings-row">
+        <label>Start <input type="number" id="blueStartInput" min="0" step="1"> min</label>
+        <label>Incr <input type="number" id="blueIncrInput" min="0" step="1"> sec</label>
+      </div>
+    </div>
+    <div class="clock-block" id="redClockBlock">
+      <div class="clock-label red">Red</div>
+      <div class="clock-time" id="redClockTime">10:00</div>
+      <div class="clock-btn-row">
+        <button class="clock-btn" id="redMinus60">-1m</button>
+        <button class="clock-btn" id="redMinus10">-10s</button>
+        <button class="clock-btn" id="redPlus10">+10s</button>
+        <button class="clock-btn" id="redPlus60">+1m</button>
+      </div>
+      <div class="clock-settings-row">
+        <label>Start <input type="number" id="redStartInput" min="0" step="1"> min</label>
+        <label>Incr <input type="number" id="redIncrInput" min="0" step="1"> sec</label>
       </div>
     </div>
   </div>
@@ -232,6 +289,15 @@
   const pickBlueBtn=document.getElementById('pickBlueBtn');
   const pickRedBtn=document.getElementById('pickRedBtn');
   const copyLinkBtn=document.getElementById('copyLinkBtn');
+  const clocksPanel=document.getElementById('clocksPanel');
+  const blueClockBlock=document.getElementById('blueClockBlock');
+  const redClockBlock=document.getElementById('redClockBlock');
+  const blueClockTime=document.getElementById('blueClockTime');
+  const redClockTime=document.getElementById('redClockTime');
+  const blueStartInput=document.getElementById('blueStartInput');
+  const blueIncrInput=document.getElementById('blueIncrInput');
+  const redStartInput=document.getElementById('redStartInput');
+  const redIncrInput=document.getElementById('redIncrInput');
 
   const NS='http://www.w3.org/2000/svg';
   function el(tag, attrs){
@@ -251,6 +317,10 @@
   let mode='local'; // 'local' | 'online'
   let roomId=null, myColor=null, claims={blue:false,red:false};
   let knownVersion=0, pollTimer=null, submitting=false, joining=false;
+  let times={blue:600,red:600}; // seconds remaining, can go negative - online only
+  let startingMinutes={blue:10,red:10}; // persists across restarts
+  let increments={blue:5,red:5}; // seconds credited per full turn, persists across restarts
+  let turnStartedAt=null; // ms timestamp the current player's clock started running
 
   function initState(){
     nodes=new Map();
@@ -305,6 +375,7 @@
     selectedSource=null; hoverPoint=null;
     messageEl.className='message ok';
     messageEl.textContent='Move undone.';
+    if(mode==='online') turnStartedAt=Date.now();
     render();
     if(mode==='online') syncCommit();
   }
@@ -316,6 +387,7 @@
     selectedSource=null; hoverPoint=null;
     messageEl.className='message ok';
     messageEl.textContent='Move redone.';
+    if(mode==='online') turnStartedAt=Date.now();
     render();
     if(mode==='online') syncCommit();
   }
@@ -344,7 +416,9 @@
     return res.json();
   }
 
-  function buildRoomPayload(){ return { ...snapshotState(), claims:{...claims} }; }
+  function buildRoomPayload(){
+    return { ...snapshotState(), claims:{...claims}, times:{...times}, startingMinutes:{...startingMinutes}, increments:{...increments}, turnStartedAt };
+  }
   function applyRoomPayload(payload, opts){
     const trackHistory = !opts || opts.trackHistory!==false;
     if(trackHistory){
@@ -353,21 +427,85 @@
     }
     restoreState(payload);
     claims = payload.claims ? {...payload.claims} : {blue:false,red:false};
+    if(payload.times) times={...payload.times};
+    if(payload.startingMinutes) startingMinutes={...payload.startingMinutes};
+    if(payload.increments) increments={...payload.increments};
+    turnStartedAt = (payload.turnStartedAt!=null) ? payload.turnStartedAt : null;
+  }
+
+  // ---------- online: chess-style clocks ----------
+  function formatClock(seconds){
+    const neg=seconds<0;
+    const abs=Math.round(Math.abs(seconds));
+    const m=Math.floor(abs/60), s=abs%60;
+    return (neg?'-':'')+m+':'+String(s).padStart(2,'0');
+  }
+  function liveTime(player){
+    let t=times[player];
+    if(turnStartedAt!=null && currentPlayer===player){
+      t-=(Date.now()-turnStartedAt)/1000;
+    }
+    return t;
+  }
+  function creditClockAndAdvance(mover){
+    if(turnStartedAt!=null) times[mover]-=(Date.now()-turnStartedAt)/1000;
+    times[mover]+=increments[mover];
+    turnStartedAt=Date.now();
+  }
+  function resetClocks(){
+    times={blue:startingMinutes.blue*60, red:startingMinutes.red*60};
+    turnStartedAt=Date.now();
+  }
+  function renderClocks(){
+    if(mode!=='online' || !roomId) return;
+    const bt=liveTime('blue'), rt=liveTime('red');
+    blueClockTime.textContent=formatClock(bt);
+    redClockTime.textContent=formatClock(rt);
+    blueClockTime.classList.toggle('negative', bt<0);
+    redClockTime.classList.toggle('negative', rt<0);
+    blueClockBlock.classList.toggle('active', currentPlayer==='blue' && !gameOver);
+    redClockBlock.classList.toggle('active', currentPlayer==='red' && !gameOver);
+  }
+  async function adjustTime(player, deltaSeconds){
+    if(mode!=='online' || !roomId || submitting) return;
+    times[player]=liveTime(player)+deltaSeconds;
+    if(currentPlayer===player) turnStartedAt=Date.now();
+    renderClocks();
+    await syncCommit();
+  }
+  async function setStartingMinutes(player, minutes){
+    if(mode!=='online' || !roomId || submitting) return;
+    if(!Number.isFinite(minutes) || minutes<0) return;
+    startingMinutes[player]=minutes;
+    await syncCommit();
+  }
+  async function setIncrement(player, seconds){
+    if(mode!=='online' || !roomId || submitting) return;
+    if(!Number.isFinite(seconds) || seconds<0) return;
+    increments[player]=seconds;
+    await syncCommit();
   }
 
   function updateOnlineUI(){
     if(mode!=='online'){
       onlinePanel.style.display='none';
+      clocksPanel.style.display='none';
       restartBtn.disabled=false;
       return;
     }
     onlinePanel.style.display='';
     if(!roomId){
       lobbyCreate.style.display=''; lobbyPick.style.display='none'; roomStatus.style.display='none';
+      clocksPanel.style.display='none';
       restartBtn.disabled=true;
       return;
     }
     lobbyCreate.style.display='none';
+    clocksPanel.style.display='flex';
+    blueStartInput.value=startingMinutes.blue;
+    blueIncrInput.value=increments.blue;
+    redStartInput.value=startingMinutes.red;
+    redIncrInput.value=increments.red;
     if(!myColor){
       lobbyPick.style.display=''; roomStatus.style.display='none';
       pickBlueBtn.disabled = !!claims.blue;
@@ -418,6 +556,7 @@
     const id=genRoomId();
     initState();
     claims={blue:false,red:false};
+    resetClocks();
     const payload=buildRoomPayload();
     try{
       const res=await apiCommit(id, 0, payload);
@@ -500,6 +639,7 @@
   async function onlineRestart(){
     if(mode!=='online' || !roomId || !myColor) return;
     initState();
+    resetClocks();
     const payload={...buildRoomPayload(), claims:{...claims}};
     try{
       const res=await apiCommit(roomId, knownVersion, payload);
@@ -819,7 +959,10 @@
     messageEl.className='message ok';
     messageEl.textContent=msg;
     render();
-    if(mode==='online') syncCommit();
+    if(mode==='online'){
+      if(currentPlayer!==player) creditClockAndAdvance(player);
+      syncCommit();
+    }
   }
 
   // ---------- rendering ----------
@@ -906,6 +1049,7 @@
     drawEdges();
     drawNodes();
     drawOverlay();
+    renderClocks();
   }
 
   // ---------- input ----------
@@ -1008,6 +1152,20 @@
       messageEl.textContent='Copy failed — the link is: '+url;
     }
   });
+
+  document.getElementById('blueMinus60').addEventListener('click', ()=>adjustTime('blue',-60));
+  document.getElementById('blueMinus10').addEventListener('click', ()=>adjustTime('blue',-10));
+  document.getElementById('bluePlus10').addEventListener('click', ()=>adjustTime('blue',10));
+  document.getElementById('bluePlus60').addEventListener('click', ()=>adjustTime('blue',60));
+  document.getElementById('redMinus60').addEventListener('click', ()=>adjustTime('red',-60));
+  document.getElementById('redMinus10').addEventListener('click', ()=>adjustTime('red',-10));
+  document.getElementById('redPlus10').addEventListener('click', ()=>adjustTime('red',10));
+  document.getElementById('redPlus60').addEventListener('click', ()=>adjustTime('red',60));
+  blueStartInput.addEventListener('change', ()=>setStartingMinutes('blue', Number(blueStartInput.value)));
+  blueIncrInput.addEventListener('change', ()=>setIncrement('blue', Number(blueIncrInput.value)));
+  redStartInput.addEventListener('change', ()=>setStartingMinutes('red', Number(redStartInput.value)));
+  redIncrInput.addEventListener('change', ()=>setIncrement('red', Number(redIncrInput.value)));
+  setInterval(renderClocks, 500);
 
   // ---------- init ----------
   initState();

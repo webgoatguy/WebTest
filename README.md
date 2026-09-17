@@ -35,8 +35,15 @@ one device).
   are meant to be cheap to fix. Whoever clicks undo reverts the shared board
   for both of you; if your view is out of date when you click, you'll get a
   "board just changed" message rather than a corrupted board.
+- **Optional chess-style clocks** — set a starting time (minutes) and
+  increment (seconds, credited once per full two-edge turn, not per edge) for
+  each side. Either player can adjust either side's current time, starting
+  time, or increment at any point, including mid-game — this is for
+  playtesting different time controls, so nothing is locked in. Running out
+  of time doesn't end the game; the clock just goes negative and keeps
+  counting, so you can see how much time actually feels right.
 - **New game** resets the room for both players and keeps the same color
-  assignments.
+  assignments (and current clock settings).
 - Rooms expire automatically after 7 days of inactivity — nothing to clean
   up by hand.
 
