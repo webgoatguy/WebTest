@@ -140,6 +140,11 @@
     padding:4px 7px; border-radius:5px; font-size:11px; cursor:pointer;
   }
   button.clock-btn:hover:not(:disabled){ color:var(--text); border-color:var(--text-dim); }
+  .clock-set-row{ display:flex; gap:5px; justify-content:center; align-items:center; margin-top:9px; }
+  .clock-set-row input{
+    width:44px; background:#1a1f2b; border:1px solid var(--panel-border); border-radius:4px;
+    color:var(--text); font-size:12px; padding:4px; font-variant-numeric:tabular-nums;
+  }
   .clock-settings-row{ display:flex; gap:10px; justify-content:center; margin-top:9px; font-size:11px; color:var(--text-dim); }
   .clock-settings-row label{ display:flex; align-items:center; gap:4px; }
   .clock-settings-row input{
@@ -194,8 +199,11 @@
         <button class="clock-btn" id="bluePlus10">+10s</button>
         <button class="clock-btn" id="bluePlus60">+1m</button>
       </div>
+      <div class="clock-set-row">
+        <input type="number" id="blueSetMinutes" min="0" step="1">
+        <button class="clock-btn" id="blueSetMinutesBtn">Set min</button>
+      </div>
       <div class="clock-settings-row">
-        <label>Start <input type="number" id="blueStartInput" min="0" step="1"> min</label>
         <label>Incr <input type="number" id="blueIncrInput" min="0" step="1"> sec</label>
       </div>
     </div>
@@ -208,8 +216,11 @@
         <button class="clock-btn" id="redPlus10">+10s</button>
         <button class="clock-btn" id="redPlus60">+1m</button>
       </div>
+      <div class="clock-set-row">
+        <input type="number" id="redSetMinutes" min="0" step="1">
+        <button class="clock-btn" id="redSetMinutesBtn">Set min</button>
+      </div>
       <div class="clock-settings-row">
-        <label>Start <input type="number" id="redStartInput" min="0" step="1"> min</label>
         <label>Incr <input type="number" id="redIncrInput" min="0" step="1"> sec</label>
       </div>
     </div>
@@ -294,9 +305,11 @@
   const redClockBlock=document.getElementById('redClockBlock');
   const blueClockTime=document.getElementById('blueClockTime');
   const redClockTime=document.getElementById('redClockTime');
-  const blueStartInput=document.getElementById('blueStartInput');
+  const blueSetMinutes=document.getElementById('blueSetMinutes');
+  const blueSetMinutesBtn=document.getElementById('blueSetMinutesBtn');
   const blueIncrInput=document.getElementById('blueIncrInput');
-  const redStartInput=document.getElementById('redStartInput');
+  const redSetMinutes=document.getElementById('redSetMinutes');
+  const redSetMinutesBtn=document.getElementById('redSetMinutesBtn');
   const redIncrInput=document.getElementById('redIncrInput');
 
   const NS='http://www.w3.org/2000/svg';
@@ -454,7 +467,7 @@
   }
   function resetClocks(){
     times={blue:startingMinutes.blue*60, red:startingMinutes.red*60};
-    turnStartedAt=Date.now();
+    turnStartedAt = (claims.blue && claims.red) ? Date.now() : null;
   }
   function renderClocks(){
     if(mode!=='online' || !roomId) return;
@@ -463,8 +476,9 @@
     redClockTime.textContent=formatClock(rt);
     blueClockTime.classList.toggle('negative', bt<0);
     redClockTime.classList.toggle('negative', rt<0);
-    blueClockBlock.classList.toggle('active', currentPlayer==='blue' && !gameOver);
-    redClockBlock.classList.toggle('active', currentPlayer==='red' && !gameOver);
+    const running = turnStartedAt!=null;
+    blueClockBlock.classList.toggle('active', running && currentPlayer==='blue' && !gameOver);
+    redClockBlock.classList.toggle('active', running && currentPlayer==='red' && !gameOver);
   }
   async function adjustTime(player, deltaSeconds){
     if(mode!=='online' || !roomId || submitting) return;
@@ -473,10 +487,13 @@
     renderClocks();
     await syncCommit();
   }
-  async function setStartingMinutes(player, minutes){
+  async function setCurrentTime(player, minutes){
     if(mode!=='online' || !roomId || submitting) return;
     if(!Number.isFinite(minutes) || minutes<0) return;
-    startingMinutes[player]=minutes;
+    times[player]=minutes*60;
+    startingMinutes[player]=minutes; // also remember this as the starting point for the next restart
+    if(currentPlayer===player) turnStartedAt=Date.now();
+    renderClocks();
     await syncCommit();
   }
   async function setIncrement(player, seconds){
@@ -502,9 +519,9 @@
     }
     lobbyCreate.style.display='none';
     clocksPanel.style.display='flex';
-    blueStartInput.value=startingMinutes.blue;
+    blueSetMinutes.value=startingMinutes.blue;
     blueIncrInput.value=increments.blue;
-    redStartInput.value=startingMinutes.red;
+    redSetMinutes.value=startingMinutes.red;
     redIncrInput.value=increments.red;
     if(!myColor){
       lobbyPick.style.display=''; roomStatus.style.display='none';
@@ -528,12 +545,15 @@
       knownVersion=latest.version;
       if(claims[color]){ updateOnlineUI(); render(); return; }
       const newClaims={...claims, [color]:true};
-      const payload={...buildRoomPayload(), claims:newClaims};
+      const bothNowClaimed = newClaims.blue && newClaims.red;
+      const newTurnStartedAt = (bothNowClaimed && turnStartedAt==null) ? Date.now() : turnStartedAt;
+      const payload={...buildRoomPayload(), claims:newClaims, turnStartedAt:newTurnStartedAt};
       const res=await apiCommit(roomId, knownVersion, payload);
       if(res.ok){
         knownVersion=res.version;
         myColor=color;
         claims=newClaims;
+        turnStartedAt=newTurnStartedAt;
         localStorage.setItem(storageKey(roomId), color);
         messageEl.className='message ok';
         messageEl.textContent = color==='blue' ? 'Blue moves first — tap one of your two starting nodes to begin.' : "Waiting for Blue's move.";
@@ -1161,9 +1181,11 @@
   document.getElementById('redMinus10').addEventListener('click', ()=>adjustTime('red',-10));
   document.getElementById('redPlus10').addEventListener('click', ()=>adjustTime('red',10));
   document.getElementById('redPlus60').addEventListener('click', ()=>adjustTime('red',60));
-  blueStartInput.addEventListener('change', ()=>setStartingMinutes('blue', Number(blueStartInput.value)));
+  blueSetMinutesBtn.addEventListener('click', ()=>setCurrentTime('blue', Number(blueSetMinutes.value)));
+  blueSetMinutes.addEventListener('keydown', (evt)=>{ if(evt.key==='Enter') setCurrentTime('blue', Number(blueSetMinutes.value)); });
   blueIncrInput.addEventListener('change', ()=>setIncrement('blue', Number(blueIncrInput.value)));
-  redStartInput.addEventListener('change', ()=>setStartingMinutes('red', Number(redStartInput.value)));
+  redSetMinutesBtn.addEventListener('click', ()=>setCurrentTime('red', Number(redSetMinutes.value)));
+  redSetMinutes.addEventListener('keydown', (evt)=>{ if(evt.key==='Enter') setCurrentTime('red', Number(redSetMinutes.value)); });
   redIncrInput.addEventListener('change', ()=>setIncrement('red', Number(redIncrInput.value)));
   setInterval(renderClocks, 500);
 
