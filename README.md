@@ -8,12 +8,15 @@ it). A single move can break at most 1 opponent edge, and an edge placed
 during your opponent's last turn is invincible (shown with a dashed white
 glow) — trying to break it is illegal. Breaking an edge only removes that
 edge, plus any node it leaves with no edges at all — nothing cascades
-further. At the end of each turn, the total area enclosed by your own edges
-(draw them, flood fill the outside, whatever never gets touched is
-"enclosed" — computed exactly via a planar-arrangement algorithm, not a grid
-approximation) is added to your running score, shown at the top alongside an
-action counter that numbers every single edge placed by either side in
-order. There's no fixed win condition — it's an open-ended running tally.
+further. At the end of every turn, **both** players' scores are updated: the
+area each side currently encloses with their own edges (computed exactly via
+a planar-arrangement algorithm, not a grid approximation or flood fill) is
+added to that side's running total — not just the player who just moved.
+Scores are shown at the top alongside an action counter that numbers every
+single edge placed by either side in order (Blue places action 1, then Red
+places 2–3, Blue 4–5, and so on). **The game ends the instant 120 actions
+have been placed** — whoever has the higher score at that point wins (a tie
+is possible and is called as a tie).
 
 This is a small static site (`index.html`) plus one serverless function
 (`api/room.js`) that lets two people play together online by sharing a link,
@@ -35,11 +38,12 @@ one device).
   are meant to be cheap to fix. Whoever clicks undo reverts the shared board
   for both of you; if your view is out of date when you click, you'll get a
   "board just changed" message rather than a corrupted board.
-- **Optional chess-style clocks** — enter a desired number of minutes and
-  hit "Set min" to instantly set either side's current time (not just a
-  starting value that waits for the next restart — it takes effect right
-  now), plus quick +/-10s/1m buttons and a per-side increment (seconds,
-  credited once per full two-edge turn, not per edge). Either player can
+- **Optional chess-style clocks** — default to 1 minute per side with a 15
+  second increment, but enter a desired number of minutes and hit "Set min"
+  to instantly set either side's current time (not just a starting value
+  that waits for the next restart — it takes effect right now), plus quick
+  +/-10s/1m buttons and a per-side increment (seconds, credited once per
+  full two-edge turn, not per edge). Either player can
   adjust either side's clock or increment at any point, including mid-game —
   this is for playtesting different time controls, so nothing is locked in.
   Clocks don't start running until both players have picked a color, so

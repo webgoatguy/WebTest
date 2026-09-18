@@ -263,7 +263,7 @@
       <li>There's no limit on edge length, but a single move can break at most 1 opponent edge — whether from a plain crossing or from attacking a node with more than one edge attached (that would break too many at once, so it's illegal).</li>
       <li>An edge placed during your opponent's last turn is invincible (shown with a dashed white glow) — trying to break it is an illegal move. It becomes breakable again once that turn passes.</li>
       <li>Breaking an edge deletes just that edge — nothing cascades. If that leaves a node with no edges at all, that node is removed too.</li>
-      <li>At the end of your turn, the total area enclosed by your own edges (draw them, flood-fill the outside — whatever never gets touched by the flood fill is "enclosed") is added to your score. A simple branch with no loop encloses nothing; a closed loop encloses whatever it surrounds. It's just a running tally — there's no target to hit.</li>
+      <li>At the end of <b>every</b> turn, both players' scores are updated: the total area each side currently encloses with their own edges (draw them, flood-fill the outside — whatever never gets touched by the flood fill is "enclosed") is added to that side's running total, not just whoever just moved. A simple branch with no loop encloses nothing; a closed loop encloses whatever it surrounds. The game ends the instant 120 actions have been placed, and whoever has the higher score at that point wins (ties are possible).</li>
       <li>The "Action" counter at the top counts every single edge placed by either side, in order — Blue's opening edge is action 1, Red's two replies are actions 2 and 3, and so on.</li>
     </ul>
   </details>
@@ -273,6 +273,7 @@
 (function(){
   const MIN_C=-9, MAX_C=9, CELL=36, PAD=40;
   const COLORS={ blue:'#4da3ff', red:'#ff5470', gold:'#f2c14e', dim:'#7b8494', grid:'#2f3648' };
+  const TOTAL_ACTIONS=120; // game ends the instant this many actions have been placed
 
   const svg=document.getElementById('board');
   const gridLayer=document.getElementById('gridLayer');
@@ -330,9 +331,9 @@
   let mode='local'; // 'local' | 'online'
   let roomId=null, myColor=null, claims={blue:false,red:false};
   let knownVersion=0, pollTimer=null, submitting=false, joining=false;
-  let times={blue:600,red:600}; // seconds remaining, can go negative - online only
-  let startingMinutes={blue:10,red:10}; // persists across restarts
-  let increments={blue:5,red:5}; // seconds credited per full turn, persists across restarts
+  let times={blue:60,red:60}; // seconds remaining, can go negative - online only
+  let startingMinutes={blue:1,red:1}; // persists across restarts
+  let increments={blue:15,red:15}; // seconds credited per full turn, persists across restarts
   let turnStartedAt=null; // ms timestamp the current player's clock started running
 
   function initState(){
@@ -941,6 +942,21 @@
     return base+'.';
   }
 
+  function creditScores(){
+    const blueArea=Math.round(computeEnclosedArea('blue')*10)/10;
+    const redArea=Math.round(computeEnclosedArea('red')*10)/10;
+    scores.blue+=blueArea;
+    scores.red+=redArea;
+    return {blueArea, redArea};
+  }
+
+  function finalizeGameOver(){
+    gameOver=true;
+    if(scores.blue>scores.red) winner='blue';
+    else if(scores.red>scores.blue) winner='red';
+    else winner='tie';
+  }
+
   function executeMove(source, target, player, result){
     historyStack.push(snapshotState());
     redoStack=[];
@@ -965,14 +981,24 @@
     actionCount++;
     movesLeftInTurn--;
     let msg=describeMove(result, player);
+    let credited=false;
 
     if(movesLeftInTurn<=0){
       turnIndex++;
-      const area=Math.round(computeEnclosedArea(player)*10)/10;
-      scores[player]+=area;
-      msg += ` +${area.toFixed(1)} enclosed area (${scores[player].toFixed(1)} total).`;
+      const {blueArea, redArea}=creditScores();
+      credited=true;
+      msg += ` Blue +${blueArea.toFixed(1)} (${scores.blue.toFixed(1)} total), Red +${redArea.toFixed(1)} (${scores.red.toFixed(1)} total).`;
       currentPlayer=opponent;
       movesLeftInTurn=2;
+    }
+
+    if(!gameOver && actionCount>=TOTAL_ACTIONS){
+      if(!credited){
+        const {blueArea, redArea}=creditScores();
+        msg += ` Blue +${blueArea.toFixed(1)} (${scores.blue.toFixed(1)} total), Red +${redArea.toFixed(1)} (${scores.red.toFixed(1)} total).`;
+      }
+      finalizeGameOver();
+      msg += winner==='tie' ? ` Game over — tie after ${TOTAL_ACTIONS} actions.` : ` Game over — ${capitalize(winner)} wins after ${TOTAL_ACTIONS} actions.`;
     }
 
     selectedSource=null; hoverPoint=null;
@@ -995,9 +1021,15 @@
 
     if(gameOver){
       turnIndicatorEl.innerHTML='Game over';
-      winBannerEl.textContent=`${capitalize(winner)} wins — first to 300 points!`;
-      winBannerEl.style.color = winner==='blue' ? COLORS.blue : COLORS.red;
-      winBannerEl.style.borderColor = winner==='blue' ? COLORS.blue : COLORS.red;
+      if(winner==='tie'){
+        winBannerEl.textContent=`Tie — ${scores.blue.toFixed(1)} points each after ${TOTAL_ACTIONS} actions.`;
+        winBannerEl.style.color = COLORS.dim;
+        winBannerEl.style.borderColor = COLORS.dim;
+      } else {
+        winBannerEl.textContent=`${capitalize(winner)} wins — ${scores[winner].toFixed(1)} to ${scores[winner==='blue'?'red':'blue'].toFixed(1)} after ${TOTAL_ACTIONS} actions.`;
+        winBannerEl.style.color = winner==='blue' ? COLORS.blue : COLORS.red;
+        winBannerEl.style.borderColor = winner==='blue' ? COLORS.blue : COLORS.red;
+      }
       winBannerEl.classList.add('show');
     } else {
       winBannerEl.classList.remove('show');
