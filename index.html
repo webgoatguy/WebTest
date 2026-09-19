@@ -236,6 +236,7 @@
       </defs>
       <g id="gridLayer"></g>
       <g id="rangeLayer"></g>
+      <g id="areaLayer"></g>
       <g id="edgeLayer"></g>
       <g id="nodeLayer"></g>
       <g id="overlayLayer"></g>
@@ -278,6 +279,7 @@
   const svg=document.getElementById('board');
   const gridLayer=document.getElementById('gridLayer');
   const rangeLayer=document.getElementById('rangeLayer');
+  const areaLayer=document.getElementById('areaLayer');
   const edgeLayer=document.getElementById('edgeLayer');
   const nodeLayer=document.getElementById('nodeLayer');
   const overlayLayer=document.getElementById('overlayLayer');
@@ -732,10 +734,12 @@
     return {x:p1.x+t*d1x, y:p1.y+t*d1y};
   }
 
-  function computeEnclosedArea(player){
+  // Returns the list of faces {verts, area, componentId} that currently count toward `player`'s score --
+  // i.e. exactly the faces computeEnclosedArea sums, exposed individually so they can be drawn/highlighted too.
+  function getScoringFaces(player){
     const EPS=1e-7;
     const ownEdges=edges.filter(e=>e.owner===player);
-    if(ownEdges.length===0) return 0;
+    if(ownEdges.length===0) return [];
 
     const cutPointsPerEdge=ownEdges.map(e=>[{x:e.x1,y:e.y1},{x:e.x2,y:e.y2}]);
     for(let i=0;i<ownEdges.length;i++){
@@ -782,7 +786,7 @@
       edgeSet.add(ek);
       graphEdges.push({u:va, v:vb});
     }
-    if(graphEdges.length===0) return 0;
+    if(graphEdges.length===0) return [];
 
     const adj=new Map();
     function addAdj(from,to){
@@ -854,12 +858,18 @@
       return {x:cx/verts.length, y:cy/verts.length};
     }
 
-    let totalArea=0;
+    const scoringFaces=[];
     for(const f of faces){
       const c=centroid(f.verts);
       const nestedInOther=faces.some(g=>g!==f && g.componentId!==f.componentId && g.area>f.area && pointInPolygon(c, g.verts));
-      if(!nestedInOther) totalArea+=f.area;
+      if(!nestedInOther) scoringFaces.push(f);
     }
+    return scoringFaces;
+  }
+
+  function computeEnclosedArea(player){
+    let totalArea=0;
+    for(const f of getScoringFaces(player)) totalArea+=f.area;
     return totalArea;
   }
 
@@ -1057,6 +1067,17 @@
     rangeLayer.appendChild(el('rect',{x:rx,y:ry,width:rw,height:rh, fill:'none', stroke:COLORS.dim, 'stroke-width':1, 'stroke-dasharray':'4 4', opacity:0.5}));
   }
 
+  function drawScoringAreas(){
+    clearLayer(areaLayer);
+    const fills={ blue:'rgba(77,163,255,0.22)', red:'rgba(255,84,112,0.22)' };
+    for(const player of ['blue','red']){
+      for(const f of getScoringFaces(player)){
+        const points=f.verts.map(v=>`${px(v.x)},${py(v.y)}`).join(' ');
+        areaLayer.appendChild(el('polygon',{points, fill:fills[player], stroke:'none'}));
+      }
+    }
+  }
+
   function drawEdges(){
     clearLayer(edgeLayer);
     for(const e of edges){
@@ -1098,6 +1119,7 @@
   function render(){
     renderScoreAndTurn();
     drawRangeHint();
+    drawScoringAreas();
     drawEdges();
     drawNodes();
     drawOverlay();
